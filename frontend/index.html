@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>BlindSpot — Production-to-Test Gap Intelligence</title>
+  <meta name="description" content="Find what production knows that your tests don't." />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>🎯</text></svg>" />
+  <link rel="stylesheet" href="/src/styles/app.css" />
+</head>
+<body>
+  <div id="root">
+    <div class="boot">
+      <div class="boot__mark">BlindSpot</div>
+      <div class="boot__status" id="boot-status">Starting…</div>
+    </div>
+  </div>
+
+  <!--
+    Two ways to run this UI:
+
+      npm run build   Vite compiles src/ into dist/, which the backend serves.
+                      This is the production path.
+
+      (no Node.js)    The loader below fetches the same .tsx sources and
+                      compiles them in the browser with Babel. It exists so the
+                      POC is runnable with only Python installed.
+
+    Either way src/ is the single copy of the UI — no component is duplicated.
+  -->
+  <script src="/vendor/react.production.min.js"></script>
+  <script src="/vendor/react-dom.production.min.js"></script>
+  <script src="/vendor/babel.min.js"></script>
+  <script>
+  (function () {
+    "use strict";
+
+    var statusEl = document.getElementById("boot-status");
+    function status(text) { if (statusEl) statusEl.textContent = text; }
+
+    function fail(message, detail) {
+      document.getElementById("root").innerHTML =
+        '<div class="boot boot--error">' +
+        '<div class="boot__mark">BlindSpot failed to start</div>' +
+        '<pre class="boot__error"></pre></div>';
+      var pre = document.querySelector(".boot__error");
+      pre.textContent = message + (detail ? "\n\n" + detail : "");
+      // eslint-disable-next-line no-console
+      console.error(message, detail);
+    }
+
+    // ---- tiny CommonJS module system over Babel-compiled sources ----------
+    var Sources = Object.create(null);   // "src/App.tsx" -> source text
+    var Modules = Object.create(null);   // path -> { exports }
+    var Globals = {
+      "react": window.React,
+      "react-dom": window.ReactDOM,
+      "react-dom/client": window.ReactDOM
+    };
+
+    function resolve(fromPath, spec) {
+      if (spec.charAt(0) !== ".") return spec;             // bare: react, react-dom
+      var dir = fromPath.split("/").slice(0, -1);
+      spec.split("/").forEach(function (part) {
+        if (part === "" || part === ".") return;
+        if (part === "..") dir.pop();
+        else dir.push(part);
+      });
+      var joined = dir.join("/");
+      var candidates = [joined, joined + ".tsx", joined + ".ts",
+                        joined + "/index.tsx", joined + "/index.ts"];
+      for (var i = 0; i < candidates.length; i++) {
+        if (Sources[candidates[i]]) return candidates[i];
+      }
+      throw new Error("Cannot resolve '" + spec + "' from '" + fromPath + "'");
+    }
+
+    function compile(path, code) {
+      return window.Babel.transform(code, {
+        filename: path,
+        presets: [
+          ["typescript", { isTSX: /\.tsx$/.test(path), allExtensions: true }],
+          ["react", { runtime: "classic" }]
+        ],
+        plugins: ["transform-modules-commonjs"],
+        sourceMaps: false,
+        compact: false
+      }).code;
+    }
+
+    function requireModule(path) {
+      if (Object.prototype.hasOwnProperty.call(Globals, path)) return Globals[path];
+      if (Modules[path]) return Modules[path].exports;
+
+      var source = Sources[path];
+      if (source === undefined) throw new Error("Module not found: " + path);
+
+      var module = { exports: {} };
+      Modules[path] = module;                    // registered first, so cycles resolve
+      var compiled = compile(path, source);
+      var factory = new Function("require", "module", "exports", compiled + "\n//# sourceURL=" + path);
+      factory(function (spec) { return requireModule(resolve(path, spec)); }, module, module.exports);
+      return module.exports;
+    }
+
+    // ---- boot -------------------------------------------------------------
+    status("Locating modules…");
+    fetch("/api/__frontend/modules")
+      .then(function (response) {
+        if (!response.ok) throw new Error("Module manifest request failed (" + response.status + ")");
+        return response.json();
+      })
+      .then(function (payload) {
+        var modules = payload.modules || [];
+        if (!modules.length) throw new Error("No frontend modules were found under src/.");
+        status("Loading " + modules.length + " modules…");
+        return Promise.all(modules.map(function (path) {
+          return fetch("/" + path).then(function (response) {
+            if (!response.ok) throw new Error("Could not load " + path);
+            return response.text();
+          }).then(function (text) { Sources[path] = text; });
+        }));
+      })
+      .then(function () {
+        status("Compiling…");
+        // Yield once so the status paints before Babel blocks the thread.
+        return new Promise(function (done) { setTimeout(done, 0); });
+      })
+      .then(function () {
+        requireModule("src/main.tsx");
+      })
+      .catch(function (error) {
+        fail(error && error.message ? error.message : String(error),
+             error && error.stack ? error.stack : "");
+      });
+  })();
+  </script>
+</body>
+</html>
