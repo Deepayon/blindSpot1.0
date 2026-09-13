@@ -161,27 +161,51 @@ class IncidentRepository:
                 | func.lower(Incident.external_id).like(like)
             )
 
-        rows = self.session.scalars(
-            statement.order_by(desc(Incident.created_at), desc(Incident.id))
-        ).all()
+        # Join the latest analysis in a single statement. Fetching it per
+        # incident turned one listing into one query per row, so the page got
+        # slower with every incident added.
+        latest = self._latest_analysis_ids()
+        statement = (
+            statement.outerjoin(
+                IncidentAnalysis,
+                (IncidentAnalysis.incident_id == Incident.id)
+                & IncidentAnalysis.id.in_(select(latest.c.analysis_id)),
+            )
+            .add_columns(IncidentAnalysis)
+            .order_by(desc(Incident.created_at), desc(Incident.id))
+        )
+        if coverage:
+            statement = statement.where(IncidentAnalysis.coverage == coverage)
 
-        paired: list[tuple[Incident, IncidentAnalysis | None]] = []
-        for row in rows:
-            analysis = self.latest_analysis(row)
-            if coverage and (analysis is None or analysis.coverage != coverage):
-                continue
-            paired.append((row, analysis))
-
+        paired = [(incident, analysis) for incident, analysis in self.session.execute(statement)]
         total = len(paired)
         return paired[offset : offset + limit], total
+
+    def _latest_analysis_ids(self):
+        """Subquery yielding the newest analysis id per incident.
+
+        Portable across SQLite and Postgres, and index-friendly.
+        """
+        return (
+            select(
+                IncidentAnalysis.incident_id.label("incident_id"),
+                func.max(IncidentAnalysis.id).label("analysis_id"),
+            )
+            .group_by(IncidentAnalysis.incident_id)
+            .subquery()
+        )
 
     def coverage_counts(self) -> dict[str, int]:
         """Counts by coverage using each incident's most recent analysis."""
         counts = {coverage.value: 0 for coverage in Coverage}
-        for incident in self.session.scalars(select(Incident)).all():
-            analysis = self.latest_analysis(incident)
-            if analysis is not None:
-                counts[analysis.coverage] = counts.get(analysis.coverage, 0) + 1
+        latest = self._latest_analysis_ids()
+        rows = self.session.execute(
+            select(IncidentAnalysis.coverage, func.count(IncidentAnalysis.id))
+            .where(IncidentAnalysis.id.in_(select(latest.c.analysis_id)))
+            .group_by(IncidentAnalysis.coverage)
+        ).all()
+        for coverage_value, count in rows:
+            counts[coverage_value] = counts.get(coverage_value, 0) + int(count)
         return counts
 
     def count_incidents(self) -> int:
@@ -191,33 +215,44 @@ class IncidentRepository:
         return int(self.session.scalar(select(func.count(GapRecord.id))) or 0)
 
     def gap_observations(self) -> list[GapObservation]:
-        """Flatten every gap on every latest analysis, for pattern detection."""
-        observations: list[GapObservation] = []
-        incidents = self.session.scalars(select(Incident)).all()
+        """Flatten every gap on every latest analysis, for pattern detection.
 
-        for incident in incidents:
-            analysis = self.latest_analysis(incident)
-            if analysis is None:
-                continue
-            gaps = self.session.scalars(
-                select(GapRecord).where(GapRecord.analysis_id == analysis.id)
-            ).all()
-            for gap in gaps:
-                try:
-                    gap_type = GapType(gap.gap_type)
-                except ValueError:
-                    gap_type = GapType.MISSING_TEST
-                observations.append(
-                    GapObservation(
-                        incident_id=incident.external_id,
-                        gap_type=gap_type,
-                        family_key=gap.family_key or "UNCATEGORISED",
-                        family_label=gap.family_label or "Uncategorised Missing Coverage",
-                        feature=incident.feature,
-                        severity=incident.severity,
-                        coverage=analysis.coverage,
-                    )
+        One join rather than two queries per incident. This runs after every
+        analysis, so an N+1 here made each new incident slower than the last.
+        """
+        latest = self._latest_analysis_ids()
+        rows = self.session.execute(
+            select(
+                Incident.external_id,
+                Incident.feature,
+                Incident.severity,
+                IncidentAnalysis.coverage,
+                GapRecord.gap_type,
+                GapRecord.family_key,
+                GapRecord.family_label,
+            )
+            .join(IncidentAnalysis, IncidentAnalysis.incident_id == Incident.id)
+            .join(GapRecord, GapRecord.analysis_id == IncidentAnalysis.id)
+            .where(IncidentAnalysis.id.in_(select(latest.c.analysis_id)))
+        ).all()
+
+        observations: list[GapObservation] = []
+        for external_id, feature, severity, coverage, gap_type, family_key, family_label in rows:
+            try:
+                parsed = GapType(gap_type)
+            except ValueError:
+                parsed = GapType.MISSING_TEST
+            observations.append(
+                GapObservation(
+                    incident_id=external_id,
+                    gap_type=parsed,
+                    family_key=family_key or "UNCATEGORISED",
+                    family_label=family_label or "Uncategorised Missing Coverage",
+                    feature=feature,
+                    severity=severity,
+                    coverage=coverage,
                 )
+            )
         return observations
 
     def count_similar_open_gaps(self, family_key: str) -> int:

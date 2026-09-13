@@ -143,6 +143,8 @@ class IncidentService:
             pairs, total = IncidentRepository(session).list_incidents(
                 coverage=coverage, feature=feature, query=query, limit=limit, offset=offset
             )
+            # One query for every gap type on the page, rather than one per row.
+            gap_types = self._gap_types_for(session, [a.id for _, a in pairs if a is not None])
             items = [
                 {
                     "id": incident.external_id,
@@ -157,22 +159,29 @@ class IncidentService:
                     "confidence": analysis.confidence if analysis else None,
                     "confidence_level": analysis.confidence_level if analysis else None,
                     "risk": analysis.risk if analysis else None,
-                    "gap_type": self._first_gap_type(session, analysis),
+                    "gap_type": gap_types.get(analysis.id) if analysis else None,
                 }
                 for incident, analysis in pairs
             ]
         return items, total
 
-    def _first_gap_type(self, session, analysis) -> str | None:
-        if analysis is None:
-            return None
+    def _gap_types_for(self, session, analysis_ids: list[int]) -> dict[int, str]:
+        """Map analysis id to its first gap type, in a single query."""
+        if not analysis_ids:
+            return {}
         from sqlalchemy import select
 
         from ..db.models import GapRecord
 
-        return session.scalar(
-            select(GapRecord.gap_type).where(GapRecord.analysis_id == analysis.id).limit(1)
-        )
+        rows = session.execute(
+            select(GapRecord.analysis_id, GapRecord.gap_type)
+            .where(GapRecord.analysis_id.in_(analysis_ids))
+            .order_by(GapRecord.id)
+        ).all()
+        mapping: dict[int, str] = {}
+        for analysis_id, gap_type in rows:
+            mapping.setdefault(analysis_id, gap_type)
+        return mapping
 
     def get_analysis(self, external_id: str) -> AnalysisResult | None:
         """Rebuild a stored analysis into the same shape a fresh one has."""
