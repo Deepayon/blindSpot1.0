@@ -166,7 +166,7 @@ class Explainer:
                     kind="effectiveness",
                     statement=(
                         f"Test {best.test.id} represents this scenario, yet production still "
-                        f"failed — its assertions or data may not protect the behaviour."
+                        f"failed, its assertions or data may not protect the behaviour."
                     ),
                     test_id=best.test.id,
                 )
@@ -325,7 +325,7 @@ class Explainer:
             return (
                 f"Test {best.test.id} does represent this scenario, including the production "
                 f"conditions. Because production still failed, the gap is in the test's "
-                f"assertions or data rather than in scenario coverage — review what it "
+                f"assertions or data rather than in scenario coverage, review what it "
                 f"actually verifies."
             )
 

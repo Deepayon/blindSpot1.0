@@ -1,7 +1,7 @@
 """Parser contract.
 
 A parser turns one artefact (a CSV, a workbook, a source file) into normalised
-tests plus a list of non-fatal issues. Parsers never raise for bad *content* —
+tests plus a list of non-fatal issues. Parsers never raise for bad *content* , 
 a malformed row or an unparseable file becomes an `IngestionIssue` so that one
 bad file can never abort an indexing run.
 """

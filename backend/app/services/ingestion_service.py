@@ -1,6 +1,6 @@
 """Test ingestion orchestration.
 
-Ties parsers → persistence → index rebuild into the two operations the API
+Ties parsers -> persistence -> index rebuild into the two operations the API
 exposes: index a file (CSV/Excel) and index a local repository.
 
 Ingestion is resilient by contract: a malformed file or row produces an

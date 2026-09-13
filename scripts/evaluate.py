@@ -9,7 +9,7 @@ result with the expected verdict.
 Reported:
   * coverage classification accuracy, with a confusion matrix
   * blind-spot family (gap category) accuracy
-  * retrieval quality — how often a same-feature test was retrieved
+  * retrieval quality, how often a same-feature test was retrieved
   * every mismatch, so weaknesses are visible rather than averaged away
 """
 from __future__ import annotations

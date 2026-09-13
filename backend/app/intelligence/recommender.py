@@ -143,7 +143,7 @@ def _recommend_sequence(
 ) -> list[Recommendation]:
     """Retry / timeout / state-transition / combination gaps."""
     signals = comparison.decisive_signals or ["the production sequence"]
-    sequence = " → ".join(phrase(s) for s in signals)
+    sequence = " -> ".join(phrase(s) for s in signals)
     return [
         Recommendation(
             title=f"Add an end-to-end {incident.feature} test for: {sequence}",
@@ -200,7 +200,7 @@ def _recommend_permission(
             suggested_inputs={"expected_status": "403"},
         ),
         Recommendation(
-            title="Cover the role × resource-ownership combination",
+            title="Cover the role x resource-ownership combination",
             rationale="Most permission defects come from combinations, not single roles.",
         ),
     ]
@@ -219,7 +219,7 @@ def _recommend_unicode(
         Recommendation(
             title=f"Add emoji and combining-character variants for {keys[0]}",
             rationale="Multi-byte and combining sequences break length and truncation logic.",
-            suggested_inputs={keys[0]: "a👍🏽b"},
+            suggested_inputs={keys[0]: "ab"},
         ),
         Recommendation(
             title="Assert round-trip encoding through storage and the API response",

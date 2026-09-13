@@ -145,7 +145,7 @@ def write_repository(specs: list[TestSpec], directory: Path) -> int:
     (directory / "README.md").write_text(
         "# Sample project\n\n"
         "A synthetic pytest suite used to demonstrate BlindSpot's repository indexing.\n"
-        "The tests are never executed — BlindSpot reads them with Python's AST only.\n",
+        "The tests are never executed, BlindSpot reads them with Python's AST only.\n",
         encoding="utf-8",
     )
     (directory / "pytest.ini").write_text(
@@ -220,7 +220,7 @@ def write_csv(specs: list[TestSpec], path: Path) -> int:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8", newline="") as handle:
         writer = csv.writer(handle)
-        # Deliberately non-canonical header names — the parser must map them.
+        # Deliberately non-canonical header names, the parser must map them.
         writer.writerow(
             ["Test ID", "Test Name", "Module", "Scenario", "Test Data", "Expected Result", "Labels"]
         )

@@ -1,7 +1,7 @@
 """Incident normalisation.
 
 Turns free-form production text into the same structured shape tests are
-reduced to. No rigid format is required — a pasted Slack message, a Sentry
+reduced to. No rigid format is required, a pasted Slack message, a Sentry
 title, or a filled-in JSON object all work.
 
 Crucially this uses the *same* `extraction` rules as test parsing. Production
@@ -26,7 +26,7 @@ from .extraction import (
 log = get_logger(__name__)
 
 _ROOT_CAUSE_RE = re.compile(
-    r"(?:root\s*cause|rca|caused\s+by|reason)\s*[:\-–]\s*(.+?)(?:\n\n|\n(?=[A-Z][a-z]+\s*:)|$)",
+    r"(?:root\s*cause|rca|caused\s+by|reason)\s*[:\--]\s*(.+?)(?:\n\n|\n(?=[A-Z][a-z]+\s*:)|$)",
     re.IGNORECASE | re.DOTALL,
 )
 _FAILURE_RE = re.compile(

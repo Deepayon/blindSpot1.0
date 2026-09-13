@@ -1,7 +1,7 @@
 """Deterministic scenario extraction.
 
-This module is the single place that knows how to read engineering English —
-"checkout failed when a 100% discount coupon was applied" — and turn it into
+This module is the single place that knows how to read engineering English , 
+"checkout failed when a 100% discount coupon was applied", and turn it into
 structured facts:
 
     feature    -> "Checkout"
@@ -210,7 +210,7 @@ _NOUN_QUAL_RE = re.compile(
 )
 # key="value" / key='value'
 _KV_QUOTED_RE = re.compile(r"([a-z_]+)\s*[=:]\s*[\"']([^\"']{1,60})[\"']")
-# "page 10000", "quantity 5" — no separator at all. Single word only, so a
+# "page 10000", "quantity 5", no separator at all. Single word only, so a
 # trailing preposition ("rate of -5") cannot be mistaken for the key.
 _NOUN_BARE_NUM_RE = re.compile(r"\b([a-z]+)\s+(-?\d+(?:\.\d+)?)\b")
 
@@ -243,12 +243,12 @@ def _clean_noun(noun: str) -> str | None:
     if not modifier.isalpha() or modifier in _STOP_BEFORE_NOUN:
         return head
 
-    # "negative discount" is a discount, not a `negative_discount` input — the
+    # "negative discount" is a discount, not a `negative_discount` input, the
     # adjective is the *value*, and is captured separately.
     if modifier in _QUALIFIER_WORDS:
         return head
 
-    # "email field" / "discount value" — the generic head adds nothing, and the
+    # "email field" / "discount value", the generic head adds nothing, and the
     # word in front is the real input name.
     if head in _GENERIC_NOUNS:
         return modifier if modifier in _CONDITION_NOUNS else f"{modifier}_{head}"
@@ -267,7 +267,7 @@ def extract_conditions(*texts: str) -> dict[str, str]:
     """Pull `{condition: value}` pairs out of natural language.
 
     Conservative by design: a pair is only emitted when the key is a recognised
-    domain noun, because a wrong condition is worse than a missing one — it would
+    domain noun, because a wrong condition is worse than a missing one, it would
     produce a confident but false coverage claim.
     """
     haystack = normalize(" ".join(t for t in texts if t))
@@ -360,7 +360,7 @@ def derive_test_signals(name: str, text: str, inputs: dict[str, object]) -> list
     """The behavioural signals a test *exercises*.
 
     Combines what its name and scenario describe with what its input values
-    actually are — a test whose input is `discount="null"` exercises null
+    actually are, a test whose input is `discount="null"` exercises null
     handling even if its name never says so.
 
     Callers must pass the test's name and scenario, NOT its full searchable

@@ -1,7 +1,7 @@
 """Python / pytest test discovery via AST.
 
 Repository files are untrusted input, so this parser **never imports or executes
-the code it reads** — it only walks the syntax tree. A file with a syntax error
+the code it reads**, it only walks the syntax tree. A file with a syntax error
 is reported and skipped.
 
 Extracted per test:

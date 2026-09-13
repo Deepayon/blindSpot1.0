@@ -28,7 +28,7 @@ _DEFAULT_MODELS = {
     # A free-tier model that answers promptly with clean JSON (~5s). Several
     # other free models are reasoning-first: they spend the whole token budget
     # thinking, return an empty object, and can take minutes. OpenRouter's
-    # free line-up changes often — see the note in .env.example.
+    # free line-up changes often, see the note in .env.example.
     "openrouter": "nex-agi/nex-n2.5-mini:free",
 }
 

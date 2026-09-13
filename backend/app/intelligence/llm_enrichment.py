@@ -2,7 +2,7 @@
 
 Two narrowly-scoped jobs, both of which degrade cleanly to a no-op:
 
-  1. `enrich_incident` — recover the *feature* when the deterministic rules
+  1. `enrich_incident`, recover the *feature* when the deterministic rules
      could not identify one at all. This is the single place a model can widen
      what gets retrieved, it is a closed seven-value set, and it only applies to
      a genuine blank.
@@ -11,7 +11,7 @@ Two narrowly-scoped jobs, both of which degrade cleanly to a no-op:
      inputs to the verdict, and accepting them measurably degraded accuracy on
      the sample dataset while forfeiting the reproducibility guarantee. What
      the model read is kept on the incident for the explanation step instead.
-  2. `refine_explanation` — rewrite the templated explanation more fluently. It
+  2. `refine_explanation`, rewrite the templated explanation more fluently. It
      receives the already-computed facts and is told not to add new ones.
 
 What is never sent: repository source code, file paths, or raw test bodies. Only
@@ -105,7 +105,7 @@ class LLMEnricher:
         # gap. Measured against the sample dataset, letting the model supply
         # them cost two correct verdicts out of eight; restricting it to empty
         # findings still cost one. Accepting them at all would also forfeit the
-        # reproducibility guarantee — the same incident could be judged
+        # reproducibility guarantee, the same incident could be judged
         # differently as the model drifts.
         #
         # The model's reading of the incident is still used: it is passed to

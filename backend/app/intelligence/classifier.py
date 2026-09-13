@@ -27,7 +27,7 @@ RELEVANCE_FLOOR = 0.15
 PARTIAL_STRENGTH_FLOOR = 0.35
 
 #: With no structured conditions or signals to compare, COVERED requires strong
-#: topical agreement — otherwise we would be guessing.
+#: topical agreement, otherwise we would be guessing.
 TOPICAL_COVERED_SCORE = 0.55
 TOPICAL_COVERED_OVERLAP = 0.45
 
@@ -77,7 +77,7 @@ class CoverageClassifier:
             conditions_ok = best.covers_all_conditions or not best.conditions
             signals_ok = best.covers_all_decisive_signals
             if conditions_ok and signals_ok:
-                # The scenario *was* covered, yet production still failed — so the
+                # The scenario *was* covered, yet production still failed, so the
                 # test's data or assertions did not actually protect the behaviour.
                 return Coverage.COVERED, TestEffectiveness.POTENTIALLY_INEFFECTIVE
 
@@ -97,7 +97,7 @@ class CoverageClassifier:
             return False
         if best.matched_conditions or best.matched_signals:
             return True
-        # The test varies the same input, just never at the production value —
+        # The test varies the same input, just never at the production value , 
         # the canonical "10% and 20% but never 100%" case.
         if comparison.union_present_condition_keys() & set(comparison.incident.conditions):
             return True
@@ -106,7 +106,7 @@ class CoverageClassifier:
     def _classify_topical(
         self, best: TestComparison, comparison: ScenarioComparison
     ) -> tuple[Coverage, TestEffectiveness]:
-        """No conditions and no decisive signals — judge on topic alone."""
+        """No conditions and no decisive signals, judge on topic alone."""
         if (
             best.feature_match
             and best.score >= TOPICAL_COVERED_SCORE
@@ -162,7 +162,7 @@ class GapClassifier:
     def _is_boundary_gap(self, best: TestComparison, comparison: ScenarioComparison) -> bool:
         """True when a numeric production value lies outside the tested range.
 
-        Requires the input to be tested at *some* value — an untested input is a
+        Requires the input to be tested at *some* value, an untested input is a
         missing test, not a boundary gap.
         """
         for condition in best.differing_conditions + best.absent_conditions:

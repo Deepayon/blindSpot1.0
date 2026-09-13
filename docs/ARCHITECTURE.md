@@ -1,4 +1,4 @@
-# BlindSpot — Architecture
+# BlindSpot, Architecture
 
 This document explains *why* the system is shaped the way it is. For setup and
 usage, see the [README](../README.md).
@@ -8,7 +8,7 @@ usage, see the [README](../README.md).
 ## 1. The problem being solved
 
 Engineering organisations already own the two artefacts needed to answer "was
-this failure preventable?" — a test suite and an incident record. They are
+this failure preventable?", a test suite and an incident record. They are
 almost never compared, because comparing them requires understanding both in the
 same terms.
 
@@ -30,7 +30,7 @@ NormalizedTest                        NormalizedIncident
 ```
 
 Because both sides are produced by `intelligence/extraction.py`, a difference
-between them is a real difference — not an artefact of two independently-tuned
+between them is a real difference, not an artefact of two independently-tuned
 heuristics. This is the single most important property of the design, and most
 of the classifier's precision comes from it.
 
@@ -49,7 +49,7 @@ of the classifier's precision comes from it.
               \             /
         Retrieval (retrieval/)             index once, query many
                     |
-      Repositories (repositories/) → SQLite
+      Repositories (repositories/) -> SQLite
                     |
         Providers (providers/)             LLM + embeddings, swappable
 ```
@@ -57,7 +57,7 @@ of the classifier's precision comes from it.
 Dependencies point inward. `domain/` depends on nothing; `intelligence/` depends
 on `domain/`; services depend on everything below them; nothing depends on the
 API layer. A future Jira or GitHub integration becomes another parser and
-another service — the analysis engine does not change.
+another service, the analysis engine does not change.
 
 ---
 
@@ -91,8 +91,8 @@ harness meaningful and the evidence trustworthy.
 
 ## 4. Retrieval
 
-Indexing happens once (spec Principle 1). `TestIndex` owns three things —
-embeddings, a BM25 inverted index, and the normalised test metadata — and
+Indexing happens once (spec Principle 1). `TestIndex` owns three things , 
+embeddings, a BM25 inverted index, and the normalised test metadata, and
 persists all of them so a restart does not require re-parsing.
 
 Retrieval is hybrid because neither half is sufficient alone:
@@ -104,7 +104,7 @@ Retrieval is hybrid because neither half is sufficient alone:
 Scores are blended with configurable weights, then adjusted by small
 multiplicative boosts for feature agreement, condition-key overlap and shared
 behavioural signals. Candidates below a *relative* floor (35% of the best score)
-are dropped — an absolute floor alone cannot distinguish "weakly related" from
+are dropped, an absolute floor alone cannot distinguish "weakly related" from
 "unrelated, but this corpus is small", and padding the evidence list with
 near-miss tests makes the explanation harder to trust rather than easier.
 
@@ -116,7 +116,7 @@ download or send private test metadata to a third party. `EmbeddingProvider` is
 an interface, so swapping one in is a single class.
 
 **Why an exact vector index.** FAISS is used when installed, but as `IndexFlatIP`
-— exact inner-product search. An approximate index would make results vary
+,  exact inner-product search. An approximate index would make results vary
 between runs and undermine the evidence-first guarantee, for no benefit at POC
 scale (a few thousand vectors is one matrix-vector product). If FAISS is absent,
 a numpy store behind the same interface produces identical results.
@@ -133,8 +133,8 @@ pieces are each tested but never together:
 
 ```
 Production:  immediate retry after timeout
-Tests:       payment timeout ✓      payment retry ✓      (never together)
-Verdict:     NOT COVERED — combination gap
+Tests:       payment timeout yes      payment retry yes      (never together)
+Verdict:     NOT COVERED, combination gap
 ```
 
 Judging against the union would have called this "covered", which is precisely
@@ -177,7 +177,7 @@ one "Null / Empty Inputs" pattern. A family is reported once it spans at least
 `BLINDSPOT_PATTERN_MIN_INCIDENTS` *distinct* incidents.
 
 Patterns are derived data, recomputed from the current set of analyses rather
-than mutated incrementally — so deleting an incident or re-analysing after
+than mutated incrementally, so deleting an incident or re-analysing after
 adding tests always produces a correct picture. Rows are updated in place so
 their ids stay stable for the UI.
 
@@ -198,7 +198,7 @@ The database is the source of truth; the vector index is a derived cache that is
 rebuilt from it whenever the two disagree.
 
 Re-indexing a source **replaces** its tests rather than appending, so a deleted
-test also disappears — otherwise the suite could only ever grow. Identical tests
+test also disappears, otherwise the suite could only ever grow. Identical tests
 imported twice (the same case in a CSV and in the repository) are stored once,
 detected by a content fingerprint.
 
@@ -207,7 +207,7 @@ detected by a content fingerprint.
 ## 8. Error handling
 
 The governing rule from the specification: *one malformed file must never abort
-an indexing run.* Parsers therefore never raise on bad **content** — a broken
+an indexing run.* Parsers therefore never raise on bad **content**, a broken
 row, a syntax error, a corrupt workbook becomes an `IngestionIssue` that is
 reported in the result and surfaced in the UI. The scanner additionally guards
 against symlinks, oversized files, unreadable files and parser crashes.
@@ -219,7 +219,7 @@ this path exercised, and a test asserts it is reported and skipped.
 
 ## 9. Frontend
 
-React + TypeScript with no routing, state-management or data-fetching library —
+React + TypeScript with no routing, state-management or data-fetching library , 
 five screens do not justify them, and their absence keeps the request/response
 shape visible to a reviewer.
 
@@ -230,7 +230,7 @@ of trusting it.
 
 There is one copy of the source. It builds with Vite for production, and the
 same `.tsx` files are compiled in the browser by a small Babel-based loader when
-Node.js is unavailable — a POC convenience that costs a one-off compile on load
+Node.js is unavailable, a POC convenience that costs a one-off compile on load
 and is skipped entirely once `dist/` exists.
 
 ---
@@ -259,7 +259,7 @@ not:
   lower-confidence, more conservative verdict. It fails toward "not enough
   evidence" rather than toward a confident wrong answer.
 - **The condition vocabulary is curated.** Domain nouns outside
-  `_CONDITION_NOUNS` are not extracted. This is deliberate — a wrong condition
+  `_CONDITION_NOUNS` are not extracted. This is deliberate, a wrong condition
   produces a confidently false coverage claim, which is worse than a missing one.
 - **Feature inference is keyword-driven** and single-label. A test spanning two
   features is filed under one.
@@ -268,7 +268,7 @@ not:
   when CI data is integrated.
 - **Topical-only incidents are judged conservatively.** With no extractable
   condition and no decisive signal, the system will not claim `COVERED`. This
-  costs accuracy on that class and is the single evaluation mismatch — an
+  costs accuracy on that class and is the single evaluation mismatch, an
   intentional trade, since a false "covered" is the worst error this product can
   make.
-- **The evaluation is not fully independent** — see the caveat in the README.
+- **The evaluation is not fully independent**, see the caveat in the README.

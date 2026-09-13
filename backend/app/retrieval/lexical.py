@@ -1,7 +1,7 @@
 """BM25 lexical index.
 
 The semantic half of retrieval generalises ("coupon" finds "discount"); the
-lexical half is what reliably pins down the *exact* tokens that matter — an
+lexical half is what reliably pins down the *exact* tokens that matter, an
 error code, a field name, `100`. The spec calls for neither keywords alone nor
 embeddings alone, so BlindSpot runs both and blends the scores.
 """
@@ -69,7 +69,7 @@ class BM25Index:
         return dict(scores)
 
     def matched_terms(self, query: str, ordinal: int, limit: int = 8) -> list[str]:
-        """Which query terms actually occur in a given document — used as evidence."""
+        """Which query terms actually occur in a given document, used as evidence."""
         matched: list[str] = []
         for term in self._query_terms(query, use_synonyms=False):
             postings = self._postings.get(term)

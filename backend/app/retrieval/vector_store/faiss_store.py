@@ -1,6 +1,6 @@
 """FAISS-backed vector store.
 
-Uses `IndexFlatIP` — exact inner-product search. Because BlindSpot normalises
+Uses `IndexFlatIP`, exact inner-product search. Because BlindSpot normalises
 every vector, inner product is cosine similarity, and an exact index keeps
 results reproducible (an approximate index would make analyses non-deterministic
 between runs, which undermines the evidence-first guarantee).

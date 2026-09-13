@@ -1,7 +1,7 @@
 """Application state.
 
-Holds the objects that must be shared across requests — the test index and the
-analysis engine — and owns the "index once, query many times" lifecycle from
+Holds the objects that must be shared across requests, the test index and the
+analysis engine, and owns the "index once, query many times" lifecycle from
 spec Principle 1.
 
 On start-up the index is restored from disk; if that fails or is stale it is

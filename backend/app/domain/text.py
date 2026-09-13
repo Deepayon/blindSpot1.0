@@ -20,7 +20,7 @@ STOPWORDS: frozenset[str] = frozenset(
 )
 
 #: Domain vocabulary that expands a term into related terms during retrieval.
-#: Deliberately small and curated — this is not a general thesaurus.
+#: Deliberately small and curated, this is not a general thesaurus.
 SYNONYMS: dict[str, tuple[str, ...]] = {
     "checkout": ("cart", "order", "purchase", "basket"),
     "cart": ("checkout", "basket"),
@@ -50,7 +50,7 @@ SYNONYMS: dict[str, tuple[str, ...]] = {
 
 
 #: Split hyphens that join words ("sign-up", "time-out") but never a hyphen that
-#: introduces a number — turning "-5" into " 5" silently destroyed every
+#: introduces a number, turning "-5" into " 5" silently destroyed every
 #: negative production value before it could be compared.
 _HYPHEN_RE = re.compile(r"-(?!\d)")
 
@@ -100,7 +100,7 @@ def jaccard(left: Iterable[str], right: Iterable[str]) -> float:
 
 
 # --------------------------------------------------------------------------
-# Value parsing — used for exact, deterministic condition comparison
+# Value parsing, used for exact, deterministic condition comparison
 # --------------------------------------------------------------------------
 
 _PERCENT_RE = re.compile(r"(-?\d+(?:\.\d+)?)\s*(?:%|percent|pct)\b")
@@ -155,4 +155,4 @@ def values_equivalent(left: object, right: object) -> bool:
 
 
 def humanize(value: object) -> str:
-    return "∅" if value is None or value == "" else str(value)
+    return "none" if value is None or value == "" else str(value)

@@ -48,7 +48,7 @@ class HashedTfidfEmbedder(EmbeddingProvider):
     # -- feature extraction -------------------------------------------------
 
     def _bucket(self, feature: str) -> tuple[int, float]:
-        """Map a feature to (index, sign). Cached — tokens repeat heavily."""
+        """Map a feature to (index, sign). Cached, tokens repeat heavily."""
         cached = self._bucket_cache.get(feature)
         if cached is not None:
             return cached

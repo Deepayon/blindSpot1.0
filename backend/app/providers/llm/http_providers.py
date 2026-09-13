@@ -44,8 +44,8 @@ def _parse_json(text: str) -> dict[str, Any] | None:
 _HTTP_HINTS = {
     401: "the API key was rejected",
     403: "the API key lacks access to this model",
-    404: "the model name does not exist for this key — check BLINDSPOT_LLM_MODEL",
-    429: "rate limit or quota exceeded — analysis continues without AI",
+    404: "the model name does not exist for this key, check BLINDSPOT_LLM_MODEL",
+    429: "rate limit or quota exceeded, analysis continues without AI",
     500: "the provider had a server error",
     503: "the model is overloaded; retry later",
 }
@@ -55,7 +55,7 @@ def _describe(exc: Exception) -> tuple[str, int | None]:
     """Turn a provider exception into an actionable message plus status code.
 
     Without this, a quota problem and a misconfigured model look identical in
-    the log — both just 'call failed' — and the operator has no idea whether to
+    the log, both just 'call failed', and the operator has no idea whether to
     change a setting or wait.
     """
     if isinstance(exc, httpx.HTTPStatusError):
@@ -63,7 +63,7 @@ def _describe(exc: Exception) -> tuple[str, int | None]:
         hint = _HTTP_HINTS.get(status, "unexpected status")
         return f"HTTP {status}: {hint}", status
     if isinstance(exc, httpx.TimeoutException):
-        return "request timed out — raise BLINDSPOT_LLM_TIMEOUT_SECONDS", None
+        return "request timed out, raise BLINDSPOT_LLM_TIMEOUT_SECONDS", None
     if isinstance(exc, httpx.RequestError):
         return f"network error: {exc}", None
     return f"{type(exc).__name__}: {exc}", None
@@ -234,7 +234,7 @@ class OpenAIProvider(LLMProvider):
     """OpenAI and any gateway speaking the same chat-completions protocol.
 
     Pointing `base_url` elsewhere is enough to use OpenRouter, Together, vLLM,
-    LM Studio or Ollama — which is the whole reason this is one class and not
+    LM Studio or Ollama, which is the whole reason this is one class and not
     four.
     """
 

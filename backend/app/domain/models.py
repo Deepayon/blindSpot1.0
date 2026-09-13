@@ -65,7 +65,7 @@ class NormalizedTest(DomainModel):
     def searchable_text(self) -> str:
         """The text used for embedding and lexical retrieval.
 
-        Only normalised metadata is included — never the raw source body — so
+        Only normalised metadata is included, never the raw source body, so
         that enabling an external provider cannot leak private code.
         """
         parts = [
@@ -85,7 +85,7 @@ class NormalizedTest(DomainModel):
         if self.inputs:
             rendered = ", ".join(f"{k}={v}" for k, v in sorted(self.inputs.items()))
             detail = f"{detail} ({rendered})" if detail else rendered
-        return f"{self.id} — {detail}".strip()
+        return f"{self.id}, {detail}".strip()
 
 
 class TestSourceInfo(DomainModel):
@@ -244,7 +244,7 @@ class AnalysisResult(DomainModel):
     comparison: ComparisonDebug = Field(default_factory=ComparisonDebug)
     reasoning_source: str = Field(
         default="deterministic",
-        description="'deterministic' or 'deterministic+llm' — makes external AI use visible.",
+        description="'deterministic' or 'deterministic+llm', makes external AI use visible.",
     )
     analyzed_at: datetime = Field(default_factory=utcnow)
     analysis_id: int | None = None

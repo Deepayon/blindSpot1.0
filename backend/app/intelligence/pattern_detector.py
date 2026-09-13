@@ -112,10 +112,10 @@ class PatternDetector:
     def _score_pattern(self, bucket: _Bucket, incident_count: int) -> Risk:
         """Pattern risk.
 
-            recurrence            0–3   how many incidents share the family
-            worst severity        0–3   CRITICAL 3 / HIGH 2 / MEDIUM 1 / LOW 0
-            uncovered proportion  0–2   share of incidents with no coverage at all
-            feature spread        0–1   a pattern crossing 3+ features is systemic
+            recurrence            0-3   how many incidents share the family
+            worst severity        0-3   CRITICAL 3 / HIGH 2 / MEDIUM 1 / LOW 0
+            uncovered proportion  0-2   share of incidents with no coverage at all
+            feature spread        0-1   a pattern crossing 3+ features is systemic
 
             >= 7 HIGH, >= 4 MEDIUM, else LOW
         """

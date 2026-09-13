@@ -10,7 +10,7 @@ openpyxl>=3.1                # .xlsx ingestion
 numpy>=1.26                  # embeddings and the exact vector store
 
 # Optional. BlindSpot uses FAISS when present and falls back to an exact numpy
-# index otherwise — results are identical, only the search path differs.
+# index otherwise, results are identical, only the search path differs.
 faiss-cpu>=1.8; platform_machine != "arm64" or sys_platform != "win32"
 
 # Development / tests

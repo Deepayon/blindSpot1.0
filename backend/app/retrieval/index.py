@@ -1,10 +1,10 @@
-"""The test index — built once, searched per incident.
+"""The test index, built once, searched per incident.
 
 Principle 1 of the spec: tests are indexed once, not re-uploaded per incident.
 This class owns that index (vectors + lexical postings + normalised metadata),
 persists it under `BLINDSPOT_INDEX_PATH`, and reloads it on start-up.
 
-Only normalised metadata is embedded — never raw source bodies — so enabling an
+Only normalised metadata is embedded, never raw source bodies, so enabling an
 external embedding provider can never leak private repository code.
 """
 from __future__ import annotations

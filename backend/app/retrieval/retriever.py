@@ -4,10 +4,10 @@ Narrows thousands of indexed tests down to the handful worth reasoning about, so
 that analysis never costs one LLM call per test (spec §45).
 
 Signals blended per candidate:
-  * embedding cosine similarity  — generalises across wording
-  * BM25 lexical score           — pins exact tokens (field names, codes, values)
-  * feature agreement            — a Checkout incident prefers Checkout tests
-  * condition-key overlap        — a test that varies `discount` beats one that doesn't
+  * embedding cosine similarity , generalises across wording
+  * BM25 lexical score          , pins exact tokens (field names, codes, values)
+  * feature agreement           , a Checkout incident prefers Checkout tests
+  * condition-key overlap       , a test that varies `discount` beats one that doesn't
 
 The blend is deterministic and every component is reported in the result, so the
 UI can show exactly why a test was considered relevant.
@@ -22,7 +22,7 @@ from .index import TestIndex
 
 log = get_logger(__name__)
 
-#: Multiplicative boosts. Kept small — retrieval should surface candidates, not
+#: Multiplicative boosts. Kept small, retrieval should surface candidates, not
 #: pre-judge them; judging is the gap analyser's job.
 _FEATURE_BOOST = 1.30
 _CONDITION_KEY_BOOST = 1.15

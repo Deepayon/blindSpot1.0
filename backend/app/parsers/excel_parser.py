@@ -30,7 +30,7 @@ class ExcelTestParser(TestParser):
         if path.suffix.lower() == ".xls":
             outcome.warn(
                 str(path),
-                "Legacy .xls is not supported by openpyxl — re-save as .xlsx.",
+                "Legacy .xls is not supported by openpyxl, re-save as .xlsx.",
                 "ERROR",
             )
             outcome.files_skipped = 1

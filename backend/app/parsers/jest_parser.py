@@ -78,7 +78,7 @@ class JestTestParser(TestParser):
                     id=f"{path.stem}::{suite}::{title}" if suite else f"{path.stem}::{title}",
                     name=title,
                     feature=feature,
-                    scenario=f"{suite} — {title}" if suite else title,
+                    scenario=f"{suite}, {title}" if suite else title,
                     inputs=merge_conditions(
                         extract_conditions(title),
                         extract_conditions(suite),

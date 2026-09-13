@@ -24,7 +24,7 @@ def load_incidents() -> list[dict[str, object]]:
     path = SAMPLE_DIR / "incidents.json"
     if not path.is_file():
         raise SystemExit(
-            "data/sample/incidents.json is missing — run `python scripts/generate_dataset.py` first."
+            "data/sample/incidents.json is missing, run `python scripts/generate_dataset.py` first."
         )
     return json.loads(path.read_text(encoding="utf-8"))
 
@@ -33,7 +33,7 @@ def load_ground_truth() -> dict[str, dict[str, object]]:
     path = EVAL_DIR / "ground_truth.json"
     if not path.is_file():
         raise SystemExit(
-            "data/evaluation/ground_truth.json is missing — run `python scripts/generate_dataset.py` first."
+            "data/evaluation/ground_truth.json is missing, run `python scripts/generate_dataset.py` first."
         )
     payload = json.loads(path.read_text(encoding="utf-8"))
     return {str(row["id"]): row for row in payload["incidents"]}

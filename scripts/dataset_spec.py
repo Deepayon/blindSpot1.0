@@ -275,7 +275,7 @@ INCIDENTS: tuple[IncidentSpec, ...] = (
         "Payment failed when an immediate retry occurred after a gateway timeout, and the customer was charged twice.\n"
         "Root cause: the retry did not check whether the original request had already settled.",
         "NOT_COVERED", "STATE_TRANSITIONS", "CRITICAL",
-        "timeout and retry are each tested, never in combination — spec §56 calls "
+        "timeout and retry are each tested, never in combination, spec §56 calls "
         "this a state/sequence combination gap",
     ),
     IncidentSpec(

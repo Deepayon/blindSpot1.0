@@ -1,6 +1,6 @@
 """The gap analysis engine.
 
-Wires retrieval → comparison → classification → explanation → recommendation
+Wires retrieval -> comparison -> classification -> explanation -> recommendation
 into one call. Deterministic throughout; the LLM, when configured, only enriches
 the incident and polishes the wording.
 """
@@ -58,7 +58,7 @@ class GapAnalysisEngine:
         if self.enricher.active and self.enricher.enrich_incident(incident):
             reasoning_source = "deterministic+llm"
 
-        # An empty index cannot support any verdict — saying "not covered" would
+        # An empty index cannot support any verdict, saying "not covered" would
         # be a fabrication, so the honest answer is that evidence is missing.
         if self.index.is_empty:
             return self._insufficient_evidence(incident, reasoning_source, started)
@@ -173,7 +173,7 @@ class GapAnalysisEngine:
             risk=Risk.MEDIUM,
             explanation=(
                 "No tests are indexed yet, so BlindSpot cannot say whether this scenario "
-                "was covered. Add a test source first — reporting 'not covered' against an "
+                "was covered. Add a test source first, reporting 'not covered' against an "
                 "empty index would not be evidence."
             ),
             gaps=[],

@@ -6,10 +6,10 @@ arbitrary.
 
     factor                points  rationale
     --------------------  ------  ------------------------------------------
-    incident severity      0–3    CRITICAL 3 / HIGH 2 / MEDIUM 1 / LOW 0
-    coverage level         0–2    NOT_COVERED 2 / PARTIAL 1 / COVERED 1
-    feature criticality    0–2    money & identity paths score highest
-    recurrence             0–3    how many prior incidents share this gap family
+    incident severity      0-3    CRITICAL 3 / HIGH 2 / MEDIUM 1 / LOW 0
+    coverage level         0-2    NOT_COVERED 2 / PARTIAL 1 / COVERED 1
+    feature criticality    0-2    money & identity paths score highest
+    recurrence             0-3    how many prior incidents share this gap family
 
     total >= 6  -> HIGH
     total >= 3  -> MEDIUM

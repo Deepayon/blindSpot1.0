@@ -2,7 +2,7 @@
 
 The default implementation is fully local and deterministic. Swapping in
 OpenAI / Anthropic / sentence-transformers means implementing this interface and
-registering it in `providers/embeddings/__init__.py` — nothing else changes.
+registering it in `providers/embeddings/__init__.py`, nothing else changes.
 """
 from __future__ import annotations
 

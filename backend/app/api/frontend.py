@@ -2,10 +2,10 @@
 
 Two modes, chosen automatically:
 
-  * **Built** — if `frontend/dist/index.html` exists (i.e. `npm run build` has
+  * **Built**, if `frontend/dist/index.html` exists (i.e. `npm run build` has
     been run), that production bundle is served. This is the deployment path.
 
-  * **Source** — otherwise the React + TypeScript source under `frontend/src`
+  * **Source**, otherwise the React + TypeScript source under `frontend/src`
     is served as-is and compiled in the browser by the loader in `index.html`.
     This exists so the POC is runnable on a machine with Python but no Node.js;
     it is a development convenience, not the production story.

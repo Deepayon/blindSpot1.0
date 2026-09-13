@@ -2,7 +2,7 @@
 
 **Find what production knows that your tests don't.**
 
-Production-to-Test Gap Intelligence — a proof of concept.
+Production-to-Test Gap Intelligence, a proof of concept.
 
 BlindSpot indexes your existing tests **once**, then answers one question for
 every production incident:
@@ -19,13 +19,13 @@ represent reality.
 
 ```
 Production incident
-  → understand the scenario        (feature, conditions, behaviour)
-  → retrieve candidate tests       (hybrid semantic + lexical search)
-  → compare, condition by condition
-  → classify coverage              COVERED / PARTIAL / NOT COVERED
-  → explain why, with evidence
-  → detect recurring blind spots
-  → recommend specific coverage
+  -> understand the scenario        (feature, conditions, behaviour)
+  -> retrieve candidate tests       (hybrid semantic + lexical search)
+  -> compare, condition by condition
+  -> classify coverage              COVERED / PARTIAL / NOT COVERED
+  -> explain why, with evidence
+  -> detect recurring blind spots
+  -> recommend specific coverage
 ```
 
 The worked example from the specification, produced by the running system:
@@ -74,7 +74,7 @@ uvicorn app.main:app --reload
 
 Open **http://localhost:8000**. API docs are at `/docs`.
 
-> **Windows PowerShell:** run each line separately — `&&` is not a valid
+> **Windows PowerShell:** run each line separately, `&&` is not a valid
 > statement separator in Windows PowerShell 5.1. If `uvicorn` is not on your
 > PATH, use `python -m uvicorn app.main:app --reload` instead.
 >
@@ -88,12 +88,12 @@ To start empty instead, skip `load_sample.py` and add a test source from the
 
 ### Using it on your own project
 
-1. **Tests → Local project** → enter a directory path → *Index repository*.
+1. **Tests -> Local project** -> enter a directory path -> *Index repository*.
    Python/pytest is the primary target; JavaScript/TypeScript (Jest, Vitest) is
    also detected. Your code never leaves the machine and is never executed.
-2. Or **Tests → CSV / Excel** → drop a test export. Column names are matched
-   flexibly (`Test ID`, `TestID`, `Key`, … all work).
-3. **Incidents** → paste a production incident → *Analyse incident*.
+2. Or **Tests -> CSV / Excel** -> drop a test export. Column names are matched
+   flexibly (`Test ID`, `TestID`, `Key`, ... all work).
+3. **Incidents** -> paste a production incident -> *Analyse incident*.
 
 Tests are indexed once. Every later incident is analysed against the same index.
 
@@ -102,7 +102,7 @@ Tests are indexed once. Every later incident is analysed against the same index.
 ## How it works
 
 BlindSpot is deliberately **deterministic first**. An LLM is optional and, when
-enabled, may only enrich wording and fill blanks — it can never change a
+enabled, may only enrich wording and fill blanks, it can never change a
 verdict, invent a test ID, or introduce a claim that is not in the evidence.
 
 | Concern | Owner |
@@ -118,11 +118,11 @@ verdict, invent a test ID, or introduce a claim that is not in the evidence.
 
 The decision order, from `intelligence/classifier.py`:
 
-1. No candidate clears the relevance floor → **NOT COVERED**
-2. The pieces are tested but never together → **NOT COVERED** *(combination gap)*
-3. One test matches every condition and behaviour → **COVERED**
-4. A related test exists but misses the decisive production condition → **PARTIAL**
-5. Otherwise → **NOT COVERED**
+1. No candidate clears the relevance floor -> **NOT COVERED**
+2. The pieces are tested but never together -> **NOT COVERED** *(combination gap)*
+3. One test matches every condition and behaviour -> **COVERED**
+4. A related test exists but misses the decisive production condition -> **PARTIAL**
+5. Otherwise -> **NOT COVERED**
 
 The distinction that matters most: **PARTIAL** means the input *is* exercised
 but not at the production value (the `10% / 20% / never 100%` case).
@@ -130,7 +130,7 @@ but not at the production value (the `10% / 20% / never 100%` case).
 
 Coverage is judged **per test, not per suite**. Three tests that separately
 cover `timeout`, `retry` and `payment failure` do not cover "immediate retry
-after timeout" — that is reported as a combination gap, exactly as the
+after timeout", that is reported as a combination gap, exactly as the
 specification requires.
 
 A `COVERED` verdict on an incident that still happened is reported as
@@ -163,7 +163,7 @@ Current results on the 56-incident sample (1,500 indexed tests):
 | --- | --- |
 | Coverage classification accuracy | **98.2%** (55/56) |
 | Gap family (category) accuracy | **100%** (56/56) |
-| Retrieval — a same-feature test found | **96.4%** (54/56) |
+| Retrieval, a same-feature test found | **96.4%** (54/56) |
 | Recurring blind spots detected | 10 |
 
 **Read this number with the right caveat.** The ground-truth labels were written
@@ -189,7 +189,7 @@ make.
 The UI is React + TypeScript, and there is exactly one copy of the source in
 `frontend/src`. It can run two ways:
 
-**With Node.js** — the production path:
+**With Node.js**, the production path:
 
 ```bash
 cd frontend
@@ -198,7 +198,7 @@ npm run build       # emits dist/, which the backend serves automatically
 npm run dev         # or: Vite dev server on :5173, proxying /api to :8000
 ```
 
-**Without Node.js** — the POC path, and the default:
+**Without Node.js**, the POC path, and the default:
 the backend serves `frontend/src` directly and the loader in `index.html`
 compiles the same `.tsx` files in the browser with a vendored Babel. React,
 ReactDOM and Babel are committed under `frontend/vendor/`, so this works with no
@@ -206,7 +206,7 @@ network access at all.
 
 This is a development convenience, not the deployment story: it costs a one-off
 compile on page load. Run `npm run build` and the backend prefers `dist/`
-automatically — no code changes.
+automatically, no code changes.
 
 ---
 
@@ -242,7 +242,7 @@ BLINDSPOT_LLM_MODEL=nex-agi/nex-n2.5-mini:free
 BLINDSPOT_LLM_API_KEY=...
 ```
 
-Any OpenAI-compatible gateway works without new code — set
+Any OpenAI-compatible gateway works without new code, set
 `BLINDSPOT_LLM_BASE_URL` (OpenRouter, Together, vLLM, LM Studio, Ollama).
 Switching provider without changing the model is safe: a model belonging to
 another provider is replaced with that provider's default rather than failing
@@ -255,10 +255,10 @@ misconfigured, analysis continues deterministically and the log says which.
 **What the model is allowed to do** is deliberately narrow, and this was
 tightened after measurement rather than assumed:
 
-- ✅ identify the **feature** when the deterministic rules found none
-- ✅ rewrite the **explanation** more fluently, using only the supplied facts —
+-  identify the **feature** when the deterministic rules found none
+-  rewrite the **explanation** more fluently, using only the supplied facts , 
   an explanation citing a test ID that was not retrieved is rejected outright
-- ❌ supply conditions or signals, because those decide the verdict
+-  supply conditions or signals, because those decide the verdict
 
 That last rule is not caution for its own sake. Letting the model contribute
 conditions and signals was measured against the sample dataset and changed two
@@ -273,29 +273,70 @@ Provider behaviour observed while testing, in case it saves you time:
 | --- | --- |
 | OpenRouter (`nex-agi/nex-n2.5-mini:free`) | ~5 s/call, clean JSON, refined 8/8 explanations |
 | Gemini (`gemini-3.6-flash`) | Works well; free-tier quota is easily exhausted (HTTP 429) |
-| Reasoning-first free models | Spend the whole token budget thinking, return `{}`, can take minutes — avoid |
+| Reasoning-first free models | Spend the whole token budget thinking, return `{}`, can take minutes, avoid |
 
 Failures are never fatal: a 429, a wrong model name or a timeout logs an
 actionable reason and the analysis completes deterministically.
 
 ---
 
-## Security
+## Security and privacy
 
-Repository files are treated as untrusted input:
+### Your source code
 
-- the path is user-supplied and must be a local directory — remote URLs and UNC
-  paths are refused;
-- repository code is **read, never imported, executed, or run as tests**;
-- symlinks are not followed, and every candidate file is re-checked to still
-  resolve inside the root;
-- only files a registered parser claims are opened at all;
-- file size and file count are capped;
-- `BLINDSPOT_ALLOWED_REPOSITORY_ROOTS` can restrict indexing to an allow-list.
+BlindSpot reads test files to extract metadata: the test name, its feature, its
+inputs and its expected behaviour. That is all the analysis needs.
 
-The POC has no authentication and is meant to run on a developer's machine. It
-binds to `127.0.0.1` by default — do not expose it without putting authentication
-in front of it.
+- **Your code is never uploaded.** Indexing happens in the process you started,
+  against a directory you nominated.
+- **Your code is never executed.** Python tests are read with the `ast` module.
+  Nothing is imported, and no test is ever run.
+- **Your code is never stored.** The raw test body is discarded after parsing
+  and is not written to the database. `BLINDSPOT_STORE_SOURCE_CODE` can retain
+  it on a machine you own; it cannot be enabled in a hosted deployment, and the
+  API never returns it either way.
+- **Only test files are opened.** A file no registered parser claims is not read.
+
+### Deployment modes
+
+| | `local` (default) | `hosted` |
+| --- | --- | --- |
+| Index a directory on the server | Available | Refused |
+| Delete sources and incidents | Available | Requires `BLINDSPOT_ADMIN_TOKEN`, otherwise off |
+| Retain source code | Opt-in | Blocked at startup |
+| CORS | localhost only | Nothing unless an origin is named |
+| Content-Security-Policy | Permits the in-browser compiler | Strict, no inline script |
+
+An unrecognised `BLINDSPOT_MODE` is treated as `hosted`, so a typo makes the
+deployment more restrictive rather than less.
+
+### Directory policy
+
+A path is refused unless it is plainly a project directory. Rejected: remote
+URLs, network paths, relative paths, filesystem and drive roots, system
+directories, credential directories such as `.ssh` and `.aws`, your home folder,
+and personal folders such as Documents and Downloads. A project *inside* one of
+those folders indexes normally.
+
+Scans are bounded by file count, file size, tree depth and wall-clock time, so a
+large or deeply nested directory cannot hold a request open.
+
+### Other controls
+
+Per-client rate limiting with a tighter budget for analysis endpoints; request
+size limits; `X-Frame-Options`, `Content-Security-Policy`, `X-Content-Type-Options`,
+`Referrer-Policy` and related headers on every response; constant-time admin
+token comparison; and errors that never return a stack trace, file path or
+driver detail.
+
+These are verified by 56 tests in `backend/tests/test_security.py`.
+
+The POC has no user accounts. It binds to `127.0.0.1` by default. Put
+authentication in front of it before exposing it to a network.
+
+Symlinks are not followed, and every candidate file is re-checked to still
+resolve inside the nominated root. `BLINDSPOT_ALLOWED_REPOSITORY_ROOTS`
+restricts indexing to an explicit allow-list.
 
 ---
 
@@ -317,7 +358,7 @@ backend/app/
   api/           FastAPI routes, schemas, frontend hosting
   config/        settings and structured logging
   db/            SQLAlchemy models and session management
-  domain/        the normalised model — the stable core
+  domain/        the normalised model, the stable core
   parsers/       CSV, Excel, pytest, Jest, repository scanner
   retrieval/     embeddings, vector stores, BM25, hybrid retriever
   intelligence/  extraction, comparison, classification, explanation,
@@ -337,7 +378,7 @@ extension points.
 
 ## Scope
 
-This is a 2–3 week POC. Deliberately **not** built: Jira/GitHub/CI integrations,
+This is a 2-3 week POC. Deliberately **not** built: Jira/GitHub/CI integrations,
 authentication, multi-tenancy, test execution, automatic code modification, or
 support for every framework. The domain model is kept independent of any
 integration so those can be added later without touching the analysis engine.

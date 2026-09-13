@@ -2,7 +2,7 @@
 
 This is deliberately deterministic: every fact the classifier later relies on is
 computed here from extracted values, never from model prose. That is what makes
-the "Evidence" section of a result trustworthy — and what stops BlindSpot from
+the "Evidence" section of a result trustworthy, and what stops BlindSpot from
 ever hallucinating that a test covers something.
 
 The key subtlety is **per-test** versus **union** coverage. Three tests that
@@ -50,7 +50,7 @@ SEQUENCE_SIGNALS: frozenset[str] = frozenset(
 )
 
 #: Condition values that *are* a signal. When production says `name = null`, the
-#: null-handling signal belongs to `name` specifically — a test that passes a
+#: null-handling signal belongs to `name` specifically, a test that passes a
 #: null *email* is not coverage for a null *name*.
 VALUE_SIGNALS: dict[str, str] = {
     "null": "null",
@@ -118,7 +118,7 @@ class TestComparison:
         return not self.missing_signals
 
     def coverage_strength(self) -> float:
-        """0..1 — how completely this one test represents the incident."""
+        """0..1, how completely this one test represents the incident."""
         parts: list[float] = []
         if self.conditions:
             parts.append(sum(1.0 for c in self.conditions if c.matched) / len(self.conditions))
@@ -126,7 +126,7 @@ class TestComparison:
         if decisive_total:
             parts.append(len(self.matched_signals) / decisive_total)
         if not parts:
-            # Nothing structured to compare — fall back to topical similarity.
+            # Nothing structured to compare, fall back to topical similarity.
             return (0.6 if self.feature_match else 0.2) * min(1.0, self.score + self.scenario_overlap)
         strength = sum(parts) / len(parts)
         return strength * (1.0 if self.feature_match else 0.7)
@@ -323,7 +323,7 @@ class ScenarioComparator:
     def _align_key(self, production_key: str, test_inputs: dict[str, object]) -> str | None:
         """Find the test input that means the same thing as a production key.
 
-        Incident prose and test code name the same input differently —
+        Incident prose and test code name the same input differently , 
         `tax_rate` versus `tax`, `page_size` versus `size`. An exact match wins;
         otherwise a shared significant token is enough. Without this, a tested
         input looks untested purely because of wording.
