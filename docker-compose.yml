@@ -1,0 +1,32 @@
+# docker compose up --build   ->   http://localhost:8000
+services:
+  blindspot:
+    build: .
+    image: blindspot:latest
+    ports:
+      - "8000:8000"
+    environment:
+      BLINDSPOT_LOG_LEVEL: INFO
+      # External AI stays off by default; nothing leaves the container.
+      BLINDSPOT_LLM_PROVIDER: none
+      # Uncomment to restrict which host directories may be indexed.
+      # BLINDSPOT_ALLOWED_REPOSITORY_ROOTS: /repos
+    volumes:
+      # Database and vector index survive container restarts.
+      - blindspot-data:/app/data
+      # Mount repositories you want to index, read-only. BlindSpot never writes
+      # to or executes the code it reads.
+      # - ${HOME}/projects:/repos:ro
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=4).status==200 else 1)"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+volumes:
+  blindspot-data:

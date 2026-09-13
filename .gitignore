@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+htmlcov/
+.coverage
+
+# Secrets and local configuration
+.env
+
+# Runtime data: the database and the vector index are both rebuildable.
+data/blindspot.db
+data/blindspot.db-wal
+data/blindspot.db-shm
+data/index/
+
+# Generated sample dataset (recreate with `python scripts/generate_dataset.py`)
+data/sample/
+data/evaluation/
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# Vendored browser libraries are committed on purpose so the POC runs offline.
+!frontend/vendor/
+
+# Editors / OS
+.idea/
+.vscode/
+.claude/settings.local.json
+.DS_Store
+Thumbs.db
