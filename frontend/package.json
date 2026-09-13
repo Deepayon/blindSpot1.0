@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "BlindSpot, Production-to-Test Gap Intelligence UI",
+  "description": "BlindSpot user interface",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",

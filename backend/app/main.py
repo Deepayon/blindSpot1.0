@@ -26,10 +26,11 @@ configure_logging(settings.log_level, settings.log_json)
 log = get_logger(__name__)
 
 DESCRIPTION = """
-Production-to-Test Gap Intelligence.
+Test coverage intelligence for production incidents.
 
-Indexes your existing tests once, then answers one question per production
-incident: **was this failure actually protected against by our tests?**
+Index your existing tests once. For each production incident, BlindSpot reports
+whether that scenario was covered, partially covered, or not covered, and shows
+the evidence behind the result.
 """
 
 

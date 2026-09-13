@@ -2,7 +2,7 @@
 
 **Find what production knows that your tests don't.**
 
-Production-to-Test Gap Intelligence, a proof of concept.
+Test coverage intelligence for production incidents. A proof of concept.
 
 BlindSpot indexes your existing tests **once**, then answers one question for
 every production incident:
