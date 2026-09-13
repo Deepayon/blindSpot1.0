@@ -3,16 +3,16 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>BlindSpot — Production-to-Test Gap Intelligence</title>
+  <title>BlindSpot, Production-to-Test Gap Intelligence</title>
   <meta name="description" content="Find what production knows that your tests don't." />
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>🎯</text></svg>" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'></text></svg>" />
   <link rel="stylesheet" href="/src/styles/app.css" />
 </head>
 <body>
   <div id="root">
     <div class="boot">
       <div class="boot__mark">BlindSpot</div>
-      <div class="boot__status" id="boot-status">Starting…</div>
+      <div class="boot__status" id="boot-status">Starting...</div>
     </div>
   </div>
 
@@ -26,7 +26,7 @@
                       compiles them in the browser with Babel. It exists so the
                       POC is runnable with only Python installed.
 
-    Either way src/ is the single copy of the UI — no component is duplicated.
+    Either way src/ is the single copy of the UI, no component is duplicated.
   -->
   <script src="/vendor/react.production.min.js"></script>
   <script src="/vendor/react-dom.production.min.js"></script>
@@ -104,7 +104,7 @@
     }
 
     // ---- boot -------------------------------------------------------------
-    status("Locating modules…");
+    status("Locating modules...");
     fetch("/api/__frontend/modules")
       .then(function (response) {
         if (!response.ok) throw new Error("Module manifest request failed (" + response.status + ")");
@@ -113,7 +113,7 @@
       .then(function (payload) {
         var modules = payload.modules || [];
         if (!modules.length) throw new Error("No frontend modules were found under src/.");
-        status("Loading " + modules.length + " modules…");
+        status("Loading " + modules.length + " modules...");
         return Promise.all(modules.map(function (path) {
           return fetch("/" + path).then(function (response) {
             if (!response.ok) throw new Error("Could not load " + path);
@@ -122,7 +122,7 @@
         }));
       })
       .then(function () {
-        status("Compiling…");
+        status("Compiling...");
         // Yield once so the status paints before Babel blocks the thread.
         return new Promise(function (done) { setTimeout(done, 0); });
       })

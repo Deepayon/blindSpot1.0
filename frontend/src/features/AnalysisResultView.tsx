@@ -26,7 +26,7 @@ const EFFECTIVENESS_NOTE: Record<string, string> = {
   NO_COVERAGE: "No relevant test exists for this scenario.",
   INSUFFICIENT_COVERAGE: "A related test exists but does not represent the production condition.",
   POTENTIALLY_INEFFECTIVE:
-    "A test covers this scenario, yet production still failed — its assertions or data may not protect the behaviour.",
+    "A test covers this scenario, yet production still failed, its assertions or data may not protect the behaviour.",
   ADEQUATE: "Existing coverage appears adequate.",
 };
 
@@ -60,7 +60,7 @@ export function AnalysisResultView({
       {result.coverage === "INSUFFICIENT_EVIDENCE" ? (
         <Banner tone="warn">
           BlindSpot has no indexed tests to compare against. Add a test source before drawing a
-          conclusion — reporting “not covered” against an empty index would not be evidence.
+          conclusion, reporting "not covered" against an empty index would not be evidence.
         </Banner>
       ) : null}
 
@@ -165,7 +165,7 @@ export function AnalysisResultView({
       </div>
 
       {/* ---------------- evidence ---------------- */}
-      <Card title="Evidence" note="Every fact below was extracted deterministically and is traceable to an indexed test.">
+      <Card title="Evidence" note="The facts this result is based on.">
         {result.evidence.length ? (
           <ul className="evidence">
             {result.evidence.map((item: Evidence, index: number) => (
@@ -182,7 +182,7 @@ export function AnalysisResultView({
       {/* ---------------- related tests ---------------- */}
       <Card
         title={`Related tests (${result.relevant_tests.length})`}
-        note="Retrieved from the index by hybrid semantic + lexical search."
+        note="The indexed tests closest to this scenario."
         flush
       >
         {result.relevant_tests.length ? (
@@ -238,7 +238,7 @@ export function AnalysisResultView({
       {result.recommendations.length ? (
         <Card
           title="Recommended coverage"
-          note="Derived from the identified gap — not bulk-generated."
+          note="Tests to add for the gap identified above."
         >
           <RecommendationList recommendations={result.recommendations} onChanged={onChanged} />
         </Card>
@@ -247,7 +247,7 @@ export function AnalysisResultView({
       {/* ---------------- details ---------------- */}
       <Card title="Analysis details">
         <details className="details" style={{ border: 0, paddingTop: 0 }}>
-          <summary>Why this verdict — retrieval and comparison signals</summary>
+          <summary>Why this verdict, retrieval and comparison signals</summary>
           <div className="grid grid--2" style={{ marginTop: 12 }}>
             <dl className="kv">
               <dt>Strategy</dt>
@@ -271,17 +271,17 @@ export function AnalysisResultView({
               <dt>Signal match</dt>
               <dd>{String(comparison.signal_match)}</dd>
               <dt>Matched</dt>
-              <dd>{comparison.matched_conditions.join(", ") || "—"}</dd>
+              <dd>{comparison.matched_conditions.join(", ") || ", "}</dd>
               <dt>Unmatched</dt>
-              <dd>{comparison.unmatched_conditions.join(", ") || "—"}</dd>
+              <dd>{comparison.unmatched_conditions.join(", ") || ", "}</dd>
               <dt>Missing behaviour</dt>
-              <dd>{comparison.unmatched_signals.join(", ") || "—"}</dd>
+              <dd>{comparison.unmatched_signals.join(", ") || ", "}</dd>
               <dt>Closest test</dt>
-              <dd>{comparison.best_test_id || "—"}</dd>
+              <dd>{comparison.best_test_id || ", "}</dd>
             </dl>
           </div>
           <div className="card__note" style={{ marginTop: 12 }}>
-            Reasoning source: {result.reasoning_source} · analysed {formatDate(result.analyzed_at)}
+            Reasoning source: {result.reasoning_source} - analysed {formatDate(result.analyzed_at)}
           </div>
         </details>
       </Card>

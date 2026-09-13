@@ -1,4 +1,4 @@
-/** Screen 6 — Recurring blind spots (spec §30). */
+/** Screen 6, Recurring blind spots (spec §30). */
 import React from "react";
 import { api } from "../services/api";
 import { useAction, useAsync } from "../hooks/useAsync";
@@ -36,7 +36,7 @@ function BlindSpotList({ navigate }: { navigate: (route: string) => void }) {
           <div>
             <h1>Blind spots</h1>
             <div className="page-head__sub">
-              One gap is a bug. The same kind of gap repeating is a testing-strategy problem.
+              Gap types that have affected more than one production incident.
             </div>
           </div>
           <button
@@ -123,7 +123,7 @@ function BlindSpotDetail({
     <div className="stack">
       <div className="row">
         <button className="btn btn--ghost btn--sm" onClick={() => navigate("blind-spots")}>
-          ← All blind spots
+          Back to blind spots
         </button>
       </div>
 
@@ -152,7 +152,7 @@ function BlindSpotDetail({
           <div>
             <div className="stat__label">Features</div>
             <div className="stat__value" style={{ fontSize: 14 }}>
-              {pattern.features.join(", ") || "—"}
+              {pattern.features.join(", ") || ", "}
             </div>
           </div>
         </div>

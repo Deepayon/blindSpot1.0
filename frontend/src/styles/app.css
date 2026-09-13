@@ -1,4 +1,4 @@
-/* BlindSpot — developer/QA tool styling.
+/* BlindSpot, developer/QA tool styling.
    Deliberately restrained: no gradients, no motion beyond a spinner, strong
    typographic hierarchy, and colour used only to carry meaning (coverage and
    risk), never for decoration. */
@@ -292,8 +292,8 @@ details.details > summary {
   list-style: none; user-select: none;
 }
 details.details > summary::-webkit-details-marker { display: none; }
-details.details > summary::before { content: "▸ "; color: var(--text-3); }
-details.details[open] > summary::before { content: "▾ "; }
+details.details > summary::before { content: "> "; color: var(--text-3); }
+details.details[open] > summary::before { content: "v "; }
 .debug { margin-top: 12px; font-family: var(--mono); font-size: 11.5px; color: var(--text-2);
   background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px;
   padding: 12px; white-space: pre-wrap; overflow: auto; max-height: 340px; }

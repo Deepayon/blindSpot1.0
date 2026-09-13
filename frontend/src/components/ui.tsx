@@ -41,9 +41,9 @@ export function titleize(value: string | null | undefined): string {
 }
 
 export function formatDate(value: string | null | undefined): string {
-  if (!value) return "—";
+  if (!value) return ", ";
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "—";
+  if (Number.isNaN(date.getTime())) return ", ";
   return date.toLocaleString(undefined, {
     year: "numeric",
     month: "short",
@@ -131,7 +131,7 @@ export function Spinner({ label }: { label?: string }) {
   );
 }
 
-export function Loading({ label = "Loading…" }: { label?: string }) {
+export function Loading({ label = "Loading..." }: { label?: string }) {
   return (
     <div className="empty">
       <Spinner label={label} />

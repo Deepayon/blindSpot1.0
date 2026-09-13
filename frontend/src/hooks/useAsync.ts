@@ -1,4 +1,4 @@
-/** Small data-loading hooks. Deliberately dependency-free — the POC does not
+/** Small data-loading hooks. Deliberately dependency-free, the POC does not
  *  need a data-fetching library, and one more abstraction would obscure the
  *  request/response shape a reviewer wants to see. */
 import { useCallback, useEffect, useRef, useState } from "react";

@@ -1,4 +1,4 @@
-/** Screen 2 — Test source & catalogue (spec §26).
+/** Screen 2, Test source & catalogue (spec §26).
  *
  *  Principle 1: tests are indexed once. This screen manages sources; incidents
  *  never re-upload anything.
@@ -69,7 +69,7 @@ export function TestsPage() {
           <div>
             <h1>Tests</h1>
             <div className="page-head__sub">
-              Index once, then analyse any number of incidents against the same index.
+              Add your tests once. Every incident is checked against them.
             </div>
           </div>
           <button
@@ -116,8 +116,8 @@ export function TestsPage() {
                 disabled={busy}
               />
               <div className="card__note" style={{ marginTop: 6 }}>
-                The repository stays on this machine. BlindSpot reads supported test files only —
-                it never uploads, imports, or executes your code.
+                Your code stays on this machine. BlindSpot reads test files only. It never
+                uploads, runs, or stores your source code.
               </div>
             </div>
             <button className="btn btn--primary" type="submit" disabled={busy || !repoPath.trim()}>
@@ -146,14 +146,14 @@ export function TestsPage() {
               }}
             >
               {indexFile.pending ? (
-                <Spinner label="Parsing and indexing…" />
+                <Spinner label="Parsing and indexing..." />
               ) : (
                 <>
                   <div style={{ fontWeight: 550, color: "var(--text-2)" }}>
                     Drop a .csv or .xlsx export here
                   </div>
                   <div style={{ marginTop: 4 }}>
-                    or click to browse. Column names are matched flexibly — <code>Test ID</code>,{" "}
+                    or click to browse. Column names are matched flexibly, <code>Test ID</code>,{" "}
                     <code>TestID</code> and <code>Key</code> all work.
                   </div>
                 </>
@@ -241,7 +241,7 @@ export function TestsPage() {
             <input
               className="input"
               style={{ width: 220 }}
-              placeholder="Search tests…"
+              placeholder="Search tests..."
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               onKeyDown={(event) => {
@@ -332,9 +332,9 @@ function IngestionSummary({ result }: { result: IngestionResult }) {
       <Banner tone="ok">
         Indexed <strong>{result.tests_indexed.toLocaleString()}</strong> tests from{" "}
         <strong>{result.source.label}</strong> in {result.duration_ms} ms
-        {result.duplicates_skipped ? ` · ${result.duplicates_skipped} duplicate(s) skipped` : ""}
-        {result.files_scanned ? ` · ${result.files_scanned} file(s) scanned` : ""}
-        {result.files_skipped ? ` · ${result.files_skipped} skipped` : ""}
+        {result.duplicates_skipped ? ` - ${result.duplicates_skipped} duplicate(s) skipped` : ""}
+        {result.files_scanned ? ` - ${result.files_scanned} file(s) scanned` : ""}
+        {result.files_skipped ? ` - ${result.files_skipped} skipped` : ""}
       </Banner>
       {result.issues.length ? (
         <details className="details">
@@ -345,7 +345,7 @@ function IngestionSummary({ result }: { result: IngestionResult }) {
           <div className="issue-list" style={{ marginTop: 8 }}>
             {result.issues.map((issue, index) => (
               <div key={index}>
-                <strong>{issue.severity}</strong> {issue.location} — {issue.reason}
+                <strong>{issue.severity}</strong> {issue.location}, {issue.reason}
               </div>
             ))}
           </div>

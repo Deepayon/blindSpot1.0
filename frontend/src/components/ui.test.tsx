@@ -1,7 +1,7 @@
 /** Component tests for the presentation primitives.
  *
  *  Run with `npm test` (requires Node.js). These cover the label and tone
- *  mapping that the whole UI leans on — if `PARTIAL` ever renders as green or
+ *  mapping that the whole UI leans on, if `PARTIAL` ever renders as green or
  *  as the raw enum name, the product is actively misleading.
  */
 import React from "react";
@@ -89,7 +89,7 @@ describe("formatting helpers", () => {
   });
 
   it("never renders an invalid date as text", () => {
-    expect(formatDate(null)).toBe("—");
-    expect(formatDate("not a date")).toBe("—");
+    expect(formatDate(null)).toBe(", ");
+    expect(formatDate("not a date")).toBe(", ");
   });
 });

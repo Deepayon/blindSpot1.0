@@ -1,4 +1,4 @@
-/** Screen 1 — Dashboard (spec §25). */
+/** Screen 1, Dashboard (spec §25). */
 import React from "react";
 import { api } from "../services/api";
 import { useAsync } from "../hooks/useAsync";
@@ -17,7 +17,7 @@ import {
 export function DashboardPage({ navigate }: { navigate: (route: string) => void }) {
   const { data, error, loading } = useAsync(() => api.dashboard(), []);
 
-  if (loading) return <Loading label="Loading dashboard…" />;
+  if (loading) return <Loading label="Loading dashboard..." />;
   if (error) return <Banner tone="error">{error}</Banner>;
   if (!data) return null;
 
@@ -30,7 +30,9 @@ export function DashboardPage({ navigate }: { navigate: (route: string) => void 
         <div className="page-head__row">
           <div>
             <h1>Dashboard</h1>
-            <div className="page-head__sub">Production → test intelligence across your suite.</div>
+            <div className="page-head__sub">
+              Coverage of your production incidents by your existing tests.
+            </div>
           </div>
           <button className="btn btn--primary" onClick={() => navigate("incidents")}>
             Analyse an incident
@@ -68,7 +70,7 @@ export function DashboardPage({ navigate }: { navigate: (route: string) => void 
       <div className="grid grid--2">
         <Card
           title="Top recurring blind spots"
-          note="Gap categories that keep reappearing across incidents."
+          note="Gap types affecting more than one incident."
           flush
         >
           {patterns.length ? (
@@ -123,7 +125,7 @@ export function DashboardPage({ navigate }: { navigate: (route: string) => void 
                     <td>
                       <div style={{ fontWeight: 550 }}>{String(incident.title || incident.id)}</div>
                       <div className="mono" style={{ color: "var(--text-3)" }}>
-                        {String(incident.id)} · {titleize(String(incident.severity ?? ""))}
+                        {String(incident.id)} - {titleize(String(incident.severity ?? ""))}
                       </div>
                     </td>
                     <td className="nowrap">{String(incident.feature)}</td>

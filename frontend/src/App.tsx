@@ -40,7 +40,7 @@ export default function App() {
         <div className="sidebar__inner">
           <div className="brand">
             <div className="brand__name">BlindSpot</div>
-            <div className="brand__tag">Production → Test Intelligence</div>
+            <div className="brand__tag">Test coverage intelligence</div>
           </div>
 
           <nav className="nav">
@@ -60,7 +60,7 @@ export default function App() {
 
           <div className="sidebar__foot">
             {externalAi ? (
-              <>External AI enabled — see Settings.</>
+              <>External AI enabled, see Settings.</>
             ) : (
               <>Running fully local. No data leaves this machine.</>
             )}
@@ -101,7 +101,7 @@ function Router({
     default:
       return (
         <Banner tone="warn">
-          Unknown screen “{section}”. <a href="#/dashboard">Return to the dashboard</a>.
+          Unknown screen "{section}". <a href="#/dashboard">Return to the dashboard</a>.
         </Banner>
       );
   }

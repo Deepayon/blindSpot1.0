@@ -1,4 +1,4 @@
-/** Screens 3 & 4 — incident submission and analysis result (spec §27–§29). */
+/** Screens 3 & 4, incident submission and analysis result (spec §27-§29). */
 import React, { useEffect, useRef, useState } from "react";
 import { api } from "../services/api";
 import { useAction, useAsync } from "../hooks/useAsync";
@@ -20,10 +20,10 @@ const EXAMPLE =
   "Root cause: division by zero in the discount calculation when the payable total reached zero.";
 
 const PROGRESS = [
-  "Understanding the incident…",
-  "Searching indexed tests…",
-  "Comparing behaviour…",
-  "Classifying coverage…",
+  "Understanding the incident...",
+  "Searching indexed tests...",
+  "Comparing behaviour...",
+  "Classifying coverage...",
 ];
 
 export function IncidentsPage({
@@ -80,7 +80,7 @@ function IncidentWorkbench({ navigate }: { navigate: (route: string) => void }) 
       <div className="page-head">
         <h1>Incidents</h1>
         <div className="page-head__sub">
-          Paste a production incident. BlindSpot decides whether your existing tests covered it.
+          Check whether a production failure was covered by your existing tests.
         </div>
       </div>
 
@@ -89,7 +89,7 @@ function IncidentWorkbench({ navigate }: { navigate: (route: string) => void }) 
           <div className="field">
             <textarea
               className="textarea"
-              placeholder="Paste production incident here…"
+              placeholder="Paste production incident here..."
               value={text}
               onChange={(event) => setText(event.target.value)}
               disabled={pending}
@@ -166,7 +166,7 @@ function IncidentWorkbench({ navigate }: { navigate: (route: string) => void }) 
           <ul className="steps" style={{ marginTop: 14 }}>
             {PROGRESS.map((label, index) => (
               <li key={label} className={index < step ? "is-done" : index === step ? "is-active" : ""}>
-                {index < step ? "✓ " : index === step ? "▸ " : "  "}
+                {index < step ? "yes " : index === step ? "> " : "  "}
                 {label}
               </li>
             ))}
@@ -256,12 +256,12 @@ function IncidentList({ navigate }: { navigate: (route: string) => void }) {
                   <td className="nowrap">
                     <CoverageBadge coverage={incident.coverage as Coverage | null} />
                   </td>
-                  <td className="nowrap">{titleize(incident.gap_type ?? "") || "—"}</td>
+                  <td className="nowrap">{titleize(incident.gap_type ?? "") || ", "}</td>
                   <td className="nowrap">
                     <RiskBadge risk={incident.risk ?? null} />
                   </td>
                   <td className="num nowrap">
-                    {incident.confidence != null ? `${Math.round(incident.confidence * 100)}%` : "—"}
+                    {incident.confidence != null ? `${Math.round(incident.confidence * 100)}%` : ", "}
                   </td>
                   <td className="nowrap" style={{ color: "var(--text-3)" }}>
                     {formatDate(incident.created_at)}
@@ -292,7 +292,7 @@ function IncidentDetail({
   const { data, error, loading, reload } = useAsync(() => api.getIncident(incidentId), [incidentId]);
   const reanalyze = useAction(api.reanalyze);
 
-  if (loading) return <Loading label="Loading analysis…" />;
+  if (loading) return <Loading label="Loading analysis..." />;
   if (error) return <Banner tone="error">{error}</Banner>;
   if (!data) return null;
 
@@ -300,7 +300,7 @@ function IncidentDetail({
     <div className="stack">
       <div className="row">
         <button className="btn btn--ghost btn--sm" onClick={() => navigate("incidents")}>
-          ← All incidents
+          Back to incidents
         </button>
         <span className="spacer" />
         <button

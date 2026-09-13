@@ -196,6 +196,7 @@ export interface AppSettings {
   index: Record<string, unknown>;
   retrieval: Record<string, unknown>;
   limits: Record<string, unknown>;
+  security: Record<string, unknown>;
   database: string;
   version: string;
 }
