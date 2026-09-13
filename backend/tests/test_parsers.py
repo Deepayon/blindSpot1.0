@@ -1,6 +1,6 @@
 """Ingestion: CSV, Excel, pytest discovery, and resilience to bad input.
 
-Covers spec §52 items 1–4.
+Covers spec §52 items 1-4.
 """
 from __future__ import annotations
 
@@ -348,7 +348,7 @@ class TestRepositoryScanning:
         assert outcome.tests == []
 
     def test_rejects_remote_urls(self):
-        with pytest.raises(RepositoryPathError, match="Remote URLs"):
+        with pytest.raises(RepositoryPathError, match="local directories only"):
             validate_repository_path("https://github.com/example/repo.git")
 
     def test_rejects_unc_paths(self):
@@ -362,7 +362,7 @@ class TestRepositoryScanning:
     def test_rejects_a_file(self, tmp_path: Path):
         target = tmp_path / "a.py"
         target.write_text("x = 1", encoding="utf-8")
-        with pytest.raises(RepositoryPathError, match="not a directory"):
+        with pytest.raises(RepositoryPathError, match="is a file"):
             validate_repository_path(str(target))
 
     def test_rejects_empty_path(self):

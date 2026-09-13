@@ -22,6 +22,10 @@ os.environ["BLINDSPOT_LLM_PROVIDER"] = "none"
 os.environ["BLINDSPOT_EMBEDDING_PROVIDER"] = "hashed_tfidf"
 os.environ["BLINDSPOT_SERVE_FRONTEND"] = "false"
 os.environ["BLINDSPOT_PATTERN_MIN_INCIDENTS"] = "3"
+os.environ["BLINDSPOT_MODE"] = "local"
+# Off by default so the suite is not throttled by its own traffic. The limiter
+# is exercised directly in test_security.py.
+os.environ["BLINDSPOT_RATE_LIMIT_ENABLED"] = "false"
 
 from app.db.base import Base, get_engine, init_db  # noqa: E402
 from app.domain.models import NormalizedTest  # noqa: E402
@@ -58,6 +62,7 @@ def client(app_state):  # noqa: ARG001
 
     from app.main import app
 
+    app.state.rate_limiter.reset()
     with TestClient(app) as test_client:
         yield test_client
 

@@ -1,4 +1,4 @@
-"""API contract tests, including error handling (spec §41–§43, §52 item 5)."""
+"""API contract tests, including error handling (spec §41-§43, §52 item 5)."""
 from __future__ import annotations
 
 import io
@@ -95,7 +95,7 @@ class TestTestIngestionApi:
             "/api/tests/index/repository", json={"path": "https://github.com/x/y.git"}
         )
         assert response.status_code == 400
-        assert "Remote URLs" in response.json()["detail"]
+        assert "local directories only" in response.json()["detail"]
 
     def test_missing_repository_path_is_rejected(self, client, tmp_path: Path):
         response = client.post(
