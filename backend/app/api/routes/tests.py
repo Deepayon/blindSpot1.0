@@ -4,11 +4,12 @@ from __future__ import annotations
 import tempfile
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile, status
 
 from ...config.logging_conf import get_logger
 from ...db.base import session_scope
 from ...repositories.test_repository import TestRepository
+from ...security import require_admin
 from ...services.ingestion_service import (
     IngestionService,
     RepositoryPathError,
@@ -86,9 +87,23 @@ async def index_file(
 @router.post("/index/repository", response_model=IngestionResponse)
 def index_repository(
     payload: IndexRepositoryRequest,
+    request: Request,
     service: IngestionService = Depends(ingestion_service),
 ) -> IngestionResponse:
-    """Index a local project directory. The repository is never uploaded or executed."""
+    """Index a local project directory.
+
+    Available only when BlindSpot runs on the operator's own machine. The
+    project is read, never uploaded, never executed, and by default no source
+    code is retained after normalisation.
+    """
+    if not request.app.state.settings.repository_indexing_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=(
+                "Repository indexing is turned off on this deployment. Run BlindSpot "
+                "locally to index a project, or upload a CSV or Excel export."
+            ),
+        )
     try:
         result = service.index_repository(payload.path)
     except RepositoryPathError as exc:
@@ -97,8 +112,11 @@ def index_repository(
 
 
 @router.post("/reindex")
-def reindex(service: IngestionService = Depends(ingestion_service)) -> dict[str, int]:
+def reindex(
+    request: Request, service: IngestionService = Depends(ingestion_service)
+) -> dict[str, int]:
     """Rebuild the search index from stored tests without re-parsing sources."""
+    require_admin(request)
     return {"tests_indexed": service.reindex()}
 
 
@@ -150,8 +168,11 @@ def list_sources(service: IngestionService = Depends(ingestion_service)) -> Sour
 
 @router.delete("/sources/{source_id}")
 def delete_source(
-    source_id: int, service: IngestionService = Depends(ingestion_service)
+    source_id: int,
+    request: Request,
+    service: IngestionService = Depends(ingestion_service),
 ) -> dict[str, bool]:
+    require_admin(request)
     if not service.delete_source(source_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Source not found.")
     return {"deleted": True}

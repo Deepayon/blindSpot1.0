@@ -67,6 +67,40 @@ class Settings:
     def __init__(self) -> None:
         self.project_root: Path = PROJECT_ROOT
 
+        # --- Deployment mode ---
+        # "local"  : a single trusted operator on their own machine. Repository
+        #            indexing is available because the code never leaves the
+        #            device and the operator owns it.
+        # "hosted" : reachable by people who are not the operator. Repository
+        #            indexing is refused, because reading a path on a shared
+        #            server means reading someone else's files.
+        #
+        # Default is "local" so an accidental deployment is restrictive rather
+        # than permissive, and an unrecognised value falls through to "hosted".
+        self.mode: str = _env("BLINDSPOT_MODE", "local").strip().lower()
+        if self.mode not in {"local", "hosted"}:
+            self.mode = "hosted"
+
+        # --- Security ---
+        # Required for destructive operations when hosted. Absent means those
+        # operations are disabled, not that they are unprotected.
+        self.admin_token: str | None = os.environ.get("BLINDSPOT_ADMIN_TOKEN") or None
+        self.rate_limit_enabled: bool = _env_bool("BLINDSPOT_RATE_LIMIT_ENABLED", True)
+        self.rate_limit_per_minute: int = _env_int("BLINDSPOT_RATE_LIMIT_PER_MINUTE", 60)
+        self.rate_limit_analyze_per_minute: int = _env_int(
+            "BLINDSPOT_RATE_LIMIT_ANALYZE_PER_MINUTE", 12
+        )
+        self.max_request_bytes: int = _env_int("BLINDSPOT_MAX_REQUEST_BYTES", 52_428_800)
+        self.allowed_origins: list[str] = [
+            origin.strip()
+            for origin in _env("BLINDSPOT_ALLOWED_ORIGINS", "").split(",")
+            if origin.strip()
+        ]
+        self.trusted_hosts: list[str] = [
+            host.strip() for host in _env("BLINDSPOT_TRUSTED_HOSTS", "").split(",") if host.strip()
+        ]
+        self.https_only: bool = _env_bool("BLINDSPOT_HTTPS_ONLY", self.mode == "hosted")
+
         # --- Server ---
         self.host: str = _env("BLINDSPOT_HOST", "127.0.0.1")
         self.port: int = _env_int("BLINDSPOT_PORT", 8000)
@@ -106,11 +140,22 @@ class Settings:
         # --- Ingestion safety limits (repository files are untrusted input) ---
         self.max_file_size_bytes: int = _env_int("BLINDSPOT_MAX_FILE_SIZE_BYTES", 2_000_000)
         self.max_scanned_files: int = _env_int("BLINDSPOT_MAX_SCANNED_FILES", 20_000)
+        # A wall-clock ceiling on a single scan. Without it, pointing the scanner
+        # at a large tree walks the filesystem and holds the request open.
+        self.scan_time_budget_seconds: float = _env_float("BLINDSPOT_SCAN_TIME_BUDGET", 30.0)
+        self.max_scan_depth: int = _env_int("BLINDSPOT_MAX_SCAN_DEPTH", 25)
         self.allowed_repository_roots: list[Path] = [
             Path(p).expanduser().resolve()
             for p in _env("BLINDSPOT_ALLOWED_REPOSITORY_ROOTS", "").split(os.pathsep)
             if p.strip()
         ]
+
+        # --- Privacy ---
+        # Off by default. BlindSpot needs only normalised metadata (name,
+        # feature, inputs, expected behaviour) to work. Retaining the raw test
+        # body would place the user's source code in our database, which is not
+        # ours to keep. Enable only on a machine the operator owns.
+        self.store_source_code: bool = _env_bool("BLINDSPOT_STORE_SOURCE_CODE", False)
 
         # --- Blind spot detection ---
         self.blind_spot_min_incidents: int = _env_int("BLINDSPOT_PATTERN_MIN_INCIDENTS", 3)
@@ -125,6 +170,34 @@ class Settings:
     def external_ai_enabled(self) -> bool:
         """True when analysis may send data to a third-party service."""
         return self.llm_provider not in {"none", "", "null"}
+
+    @property
+    def is_hosted(self) -> bool:
+        return self.mode == "hosted"
+
+    @property
+    def repository_indexing_enabled(self) -> bool:
+        """Reading a server-side path is only safe where the operator owns it.
+
+        In a hosted deployment the filesystem belongs to the host rather than
+        the visitor, so this is refused regardless of any allow list.
+        """
+        return not self.is_hosted
+
+    def describe_security(self) -> dict[str, object]:
+        """Non-secret security posture, safe to display."""
+        if self.admin_token:
+            destructive = "Token required"
+        else:
+            destructive = "Disabled" if self.is_hosted else "Enabled"
+        return {
+            "mode": self.mode,
+            "repository_indexing": self.repository_indexing_enabled,
+            "source_code_retained": self.store_source_code,
+            "destructive_operations": destructive,
+            "rate_limited": self.rate_limit_enabled,
+            "allowed_repository_roots": len(self.allowed_repository_roots),
+        }
 
     def describe_ai(self) -> dict[str, object]:
         """Non-secret summary of the AI configuration, safe to expose in the UI."""

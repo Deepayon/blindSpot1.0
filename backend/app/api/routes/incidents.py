@@ -3,9 +3,10 @@ from __future__ import annotations
 
 import json
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile, status
 
 from ...config.logging_conf import get_logger
+from ...security import require_admin
 from ...services.incident_service import IncidentService
 from ..deps import incident_service
 from ..schemas import (
@@ -145,7 +146,7 @@ def get_incident(
 def reanalyze_incident(
     incident_id: str, service: IncidentService = Depends(incident_service)
 ) -> AnalysisResponse:
-    """Re-run analysis against the current index — useful after adding tests."""
+    """Re-run analysis against the current index, useful after adding tests."""
     result = service.reanalyze(incident_id)
     if result is None:
         raise HTTPException(
@@ -156,8 +157,11 @@ def reanalyze_incident(
 
 @router.delete("/incidents/{incident_id}")
 def delete_incident(
-    incident_id: str, service: IncidentService = Depends(incident_service)
+    incident_id: str,
+    request: Request,
+    service: IncidentService = Depends(incident_service),
 ) -> dict[str, bool]:
+    require_admin(request)
     if not service.delete_incident(incident_id):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=f"Incident '{incident_id}' not found."

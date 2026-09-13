@@ -142,5 +142,6 @@ class SettingsResponse(BaseModel):
     index: dict[str, Any]
     retrieval: dict[str, Any]
     limits: dict[str, Any]
+    security: dict[str, Any]
     database: str
     version: str

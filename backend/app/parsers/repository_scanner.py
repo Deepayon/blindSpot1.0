@@ -1,9 +1,9 @@
 """Local repository scanning.
 
-Security posture (spec §39–§40) — the repository is **untrusted input**:
+Security posture (spec §39-§40), the repository is **untrusted input**:
   * the path is user-selected and must be a real local directory;
   * remote URLs and UNC/network paths are rejected outright;
-  * repository code is never imported, executed, or run as tests — only read;
+  * repository code is never imported, executed, or run as tests, only read;
   * symlinks are not followed, which closes the main path-traversal escape;
   * every candidate file is re-checked to still resolve inside the root;
   * file size and file count are capped so a hostile tree cannot exhaust memory;
@@ -12,29 +12,33 @@ Security posture (spec §39–§40) — the repository is **untrusted input**:
 from __future__ import annotations
 
 import os
-import re
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
 from ..config.logging_conf import get_logger
 from ..config.settings import Settings, get_settings
+from ..security import PathPolicyError, validate_repository_path
 from .base import ParseOutcome, TestParser
 from .jest_parser import JestTestParser
 from .pytest_parser import PytestParser
 
 log = get_logger(__name__)
 
+#: Kept under its original name so callers have one exception to catch.
+RepositoryPathError = PathPolicyError
+
+__all__ = [
+    "IGNORED_DIRECTORIES",
+    "RepositoryPathError",
+    "RepositoryScanner",
+    "validate_repository_path",
+]
+
 #: Directories that never contain first-party tests but do contain many files.
 IGNORED_DIRECTORIES = frozenset(
     [".git", ".hg", ".svn", ".idea", ".vscode", ".vs", "__pycache__", ".pytest_cache", ".mypy_cache", ".ruff_cache", "node_modules", "bower_components", "vendor", "venv", ".venv", "env", ".env", "virtualenv", "site-packages", "dist", "build", "out", "target", "coverage", "htmlcov", ".tox", ".nox", ".next", ".nuxt", ".cache", ".gradle", "bin", "obj", "Debug", "Release", ".terraform"]
 )
-
-_URL_RE = re.compile(r"^[a-zA-Z][a-zA-Z0-9+.-]*://")
-
-
-class RepositoryPathError(ValueError):
-    """The supplied repository path is not acceptable."""
-
 
 @dataclass
 class ScanStats:
@@ -49,42 +53,6 @@ class ScanStats:
     attempted: int = 0
     files_skipped: int = 0
     directories_pruned: int = 0
-
-
-def validate_repository_path(raw_path: str, settings: Settings | None = None) -> Path:
-    """Validate and resolve a user-supplied repository path.
-
-    Raises `RepositoryPathError` with a user-facing message when unacceptable.
-    """
-    settings = settings or get_settings()
-    candidate = (raw_path or "").strip().strip('"').strip("'")
-
-    if not candidate:
-        raise RepositoryPathError("A repository path is required.")
-    if _URL_RE.match(candidate):
-        raise RepositoryPathError(
-            "Remote URLs are not supported. BlindSpot only indexes local directories."
-        )
-    if candidate.startswith("\\\\") or candidate.startswith("//"):
-        raise RepositoryPathError("Network (UNC) paths are not supported.")
-
-    try:
-        resolved = Path(candidate).expanduser().resolve(strict=True)
-    except FileNotFoundError:
-        raise RepositoryPathError("Path does not exist.") from None
-    except (OSError, RuntimeError) as exc:
-        raise RepositoryPathError(f"Path could not be resolved: {exc}") from exc
-
-    if not resolved.is_dir():
-        raise RepositoryPathError("Path is not a directory.")
-
-    allowed = settings.allowed_repository_roots
-    if allowed and not any(_is_within(resolved, root) for root in allowed):
-        raise RepositoryPathError(
-            "Path is outside the directories allowed by BLINDSPOT_ALLOWED_REPOSITORY_ROOTS."
-        )
-
-    return resolved
 
 
 def _is_within(path: Path, root: Path) -> bool:
@@ -107,10 +75,31 @@ class RepositoryScanner:
         stats = ScanStats()
         max_size = self.settings.max_file_size_bytes
         max_files = self.settings.max_scanned_files
+        deadline = time.monotonic() + self.settings.scan_time_budget_seconds
+        root_depth = len(root.parts)
 
         log.info("indexing started", extra={"event": "index.started", "root": str(root)})
 
         for directory, subdirectories, filenames in os.walk(root, followlinks=False):
+            # Three independent stop conditions, all checked before any work:
+            # wall clock, tree depth and file count. Any one being reached ends
+            # the scan with a partial result rather than holding the request
+            # open or exhausting memory.
+            if time.monotonic() > deadline:
+                outcome.warn(
+                    str(root),
+                    f"Scan stopped after {self.settings.scan_time_budget_seconds:.0f} seconds. "
+                    "Index a more specific directory.",
+                )
+                subdirectories[:] = []
+                self._finish(outcome, stats, root)
+                return outcome
+
+            if len(Path(directory).parts) - root_depth >= self.settings.max_scan_depth:
+                stats.directories_pruned += len(subdirectories)
+                subdirectories[:] = []
+                continue
+
             # Prune in place so os.walk never descends into them.
             keep = [d for d in subdirectories if d not in IGNORED_DIRECTORIES and not d.startswith(".")]
             stats.directories_pruned += len(subdirectories) - len(keep)
@@ -173,7 +162,7 @@ class RepositoryScanner:
                     )
                     continue
 
-                # Report paths relative to the root — absolute paths on a private
+                # Report paths relative to the root, absolute paths on a private
                 # machine are needless detail in the UI.
                 for test in file_outcome.tests:
                     test.source = resolved.relative_to(root).as_posix()

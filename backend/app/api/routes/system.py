@@ -34,10 +34,13 @@ def settings(state: AppState = Depends(app_state)) -> SettingsResponse:
         limits={
             "max_file_size_bytes": config.max_file_size_bytes,
             "max_scanned_files": config.max_scanned_files,
+            "scan_time_budget_seconds": config.scan_time_budget_seconds,
             "blind_spot_min_incidents": config.blind_spot_min_incidents,
-            "allowed_repository_roots": [str(p) for p in config.allowed_repository_roots],
+            "rate_limit_per_minute": config.rate_limit_per_minute,
+            "rate_limit_analyze_per_minute": config.rate_limit_analyze_per_minute,
         },
-        # The URL may contain a path but never credentials for the SQLite default.
+        security=config.describe_security(),
+        # The scheme only. The URL may contain a path, never a credential.
         database=config.database_url.split("://")[0],
         version=VERSION,
     )
