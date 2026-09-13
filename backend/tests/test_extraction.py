@@ -1,4 +1,4 @@
-"""Deterministic extraction — the foundation every verdict rests on."""
+"""Deterministic extraction, the foundation every verdict rests on."""
 from __future__ import annotations
 
 import pytest

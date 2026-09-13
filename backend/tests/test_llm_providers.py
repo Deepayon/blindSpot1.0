@@ -307,7 +307,7 @@ class TestJsonParsing:
         [
             ('{"a": 1}', {"a": 1}),
             ('```json\n{"a": 1}\n```', {"a": 1}),
-            ('Here you go: {"a": 1} — hope that helps', {"a": 1}),
+            ('Here you go: {"a": 1}, hope that helps', {"a": 1}),
             ("[1, 2, 3]", None),
             ("", None),
             ("not json", None),

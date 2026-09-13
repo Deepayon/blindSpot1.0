@@ -1,6 +1,6 @@
 """Retrieval, coverage classification, gaps, recommendations and patterns.
 
-Covers spec §52 items 6–10, including the acceptance test in §68 and the
+Covers spec §52 items 6-10, including the acceptance test in §68 and the
 worked example in §56.
 """
 from __future__ import annotations
