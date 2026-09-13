@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
+from ..config.settings import get_settings
 from ..db.models import TestCase, TestSource
 from ..domain.models import NormalizedTest, TestSourceInfo, utcnow
 from ..parsers.base import fingerprint
@@ -65,7 +66,7 @@ class TestRepository:
         """Replace this source's tests. Returns (stored, duplicates_skipped).
 
         Re-indexing is a replace rather than an append so a removed test also
-        disappears from the index — otherwise the suite would only ever grow.
+        disappears from the index, otherwise the suite would only ever grow.
         """
         self.session.execute(delete(TestCase).where(TestCase.source_id == source.id))
         self.session.flush()
@@ -82,6 +83,11 @@ class TestRepository:
         seen_ids: set[str] = set()
         duplicates = 0
         rows: list[TestCase] = []
+
+        # Privacy: the analysis engine works from normalised metadata, so the
+        # raw test body is dropped before it reaches the database unless the
+        # operator has explicitly opted in on a machine they own.
+        retain_code = get_settings().store_source_code
 
         for test in tests:
             digest = fingerprint(test)
@@ -108,7 +114,7 @@ class TestRepository:
                     file_path=test.source,
                     framework=test.framework,
                     line_number=test.line_number,
-                    code=test.code,
+                    code=test.code if retain_code else None,
                     fingerprint=digest,
                     extra=test.extra,
                 )

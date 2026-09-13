@@ -3,7 +3,7 @@
     test_source 1---* test
     incident    1---* incident_analysis 1---* gap 1---* recommendation
     gap         *---1 blind_spot
-    analysis_run  — one row per indexing/analysis batch, for observability
+    analysis_run , one row per indexing/analysis batch, for observability
 
 JSON-typed columns hold the extensible parts of the domain model so that adding
 a field to `NormalizedTest` does not require a migration during the POC.
@@ -69,6 +69,8 @@ class TestCase(Base):
     file_path: Mapped[str] = mapped_column(Text, default="")
     framework: Mapped[str] = mapped_column(String(64), default="unknown")
     line_number: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    #: Raw test body. NULL unless BLINDSPOT_STORE_SOURCE_CODE is explicitly
+    #: enabled; see TestRepository.replace_tests. Never returned by the API.
     code: Mapped[str | None] = mapped_column(Text, nullable=True)
     fingerprint: Mapped[str] = mapped_column(String(64), index=True)
     extra: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
