@@ -253,6 +253,60 @@ class TestSecurityHeaders:
         assert "connect-src 'self'" in csp
 
 
+class TestHostedModeStartupGuards:
+    """Hosted mode must refuse to start in a configuration that would be unsafe
+    or visibly broken, rather than failing later in a visitor's browser."""
+
+    def _start(self, monkeypatch, **env: str):
+        from fastapi.testclient import TestClient
+
+        import app.main as main_module
+        from app.config.settings import get_settings
+
+        for key, value in env.items():
+            monkeypatch.setenv(key, value)
+        get_settings.cache_clear()
+        monkeypatch.setattr(main_module, "settings", get_settings())
+        main_module.app.state.settings = get_settings()
+        return TestClient(main_module.app)
+
+    def test_refuses_to_retain_source_code_when_hosted(self, monkeypatch):
+        client = self._start(
+            monkeypatch,
+            BLINDSPOT_MODE="hosted",
+            BLINDSPOT_STORE_SOURCE_CODE="true",
+            BLINDSPOT_SERVE_FRONTEND="false",
+        )
+        with pytest.raises(RuntimeError, match="cannot be enabled in hosted mode"), client:
+            pass
+
+    def test_refuses_to_serve_an_unbuilt_frontend_when_hosted(self, monkeypatch, tmp_path):
+        """The strict hosted policy cannot execute the in-browser compiler, so
+        an unbuilt frontend would render a blank page."""
+        client = self._start(
+            monkeypatch,
+            BLINDSPOT_MODE="hosted",
+            BLINDSPOT_SERVE_FRONTEND="true",
+            BLINDSPOT_FRONTEND_DIR=str(tmp_path),
+        )
+        with pytest.raises(RuntimeError, match="requires a built frontend"), client:
+            pass
+
+    def test_starts_when_the_frontend_is_built(self, monkeypatch, tmp_path):
+        dist = tmp_path / "dist"
+        dist.mkdir()
+        (dist / "index.html").write_text("<!doctype html><title>ok</title>", encoding="utf-8")
+
+        client = self._start(
+            monkeypatch,
+            BLINDSPOT_MODE="hosted",
+            BLINDSPOT_SERVE_FRONTEND="true",
+            BLINDSPOT_FRONTEND_DIR=str(tmp_path),
+        )
+        with client:
+            assert client.get("/api/health").status_code == 200
+
+
 class TestRateLimiter:
     def test_allows_up_to_the_limit_then_refuses(self):
         limiter = RateLimiter()

@@ -53,6 +53,16 @@ def mount_frontend(app: FastAPI, settings: Settings) -> None:
         _mount_built(app, dist_dir)
         return
 
+    if settings.is_hosted:
+        # Startup refuses this configuration, so reaching here means the guard
+        # was bypassed. Serve nothing rather than source under a policy that
+        # cannot execute it.
+        log.error(
+            "hosted mode without a built frontend; serving API only",
+            extra={"event": "frontend.not_built", "path": str(dist_dir)},
+        )
+        return
+
     if not (frontend_dir / "index.html").is_file():
         log.warning(
             "no frontend found; API only",

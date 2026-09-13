@@ -48,6 +48,19 @@ async def lifespan(app: FastAPI):
             "retaining source code that is not the operator's is not permitted."
         )
 
+    # Hosted mode serves a strict Content-Security-Policy with no inline script
+    # or eval, which the in-browser TypeScript loader requires. Without a built
+    # frontend the page would load and then silently render nothing. Fail here,
+    # where the message is visible, rather than in a visitor's console.
+    if settings.is_hosted and settings.serve_frontend:
+        built = settings.frontend_dir / "dist" / "index.html"
+        if not built.is_file():
+            raise RuntimeError(
+                "Hosted mode requires a built frontend. Run 'npm run build' in "
+                "frontend/ (the Docker image does this automatically), or set "
+                "BLINDSPOT_SERVE_FRONTEND=false to run the API alone."
+            )
+
     log.info(
         "blindspot ready",
         extra={
