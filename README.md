@@ -23,6 +23,7 @@ Production incident
   -> retrieve candidate tests       (hybrid semantic + lexical search)
   -> compare, condition by condition
   -> classify coverage              COVERED / PARTIAL / NOT COVERED
+                                    or INSUFFICIENT EVIDENCE, rather than guess
   -> explain why, with evidence
   -> detect recurring blind spots
   -> recommend specific coverage
@@ -157,30 +158,59 @@ measured rather than demonstrated:
 python scripts/evaluate.py
 ```
 
-Current results on the 56-incident sample (1,500 indexed tests):
+Current results on the 66-incident sample (1,500 indexed tests):
 
 | Metric | Result |
 | --- | --- |
-| Coverage classification accuracy | **98.2%** (55/56) |
-| Gap family (category) accuracy | **100%** (56/56) |
-| Retrieval, a same-feature test found | **96.4%** (54/56) |
+| Coverage classification accuracy | **97.0%** (64/66) |
+| Gap family (category) accuracy | **98.5%** (65/66) |
+| Retrieval, a same-feature test found | **92.4%** (61/66) |
 | Recurring blind spots detected | 10 |
 
-**Read this number with the right caveat.** The ground-truth labels were written
-before the engine was tuned, but 9 of the 56 were revised once during
-development, because the original label contradicted the specification's own
-definitions (for example, labelling an input that *is* exercised at a different
-value as `NOT_COVERED`, when the spec's flagship 100%-discount example calls
-exactly that case `PARTIAL`). Each revised label carries its justification in
-`data/evaluation/ground_truth.json`. Because labels and engine were refined in
-the same effort, treat this as a development signal, not an independent
-benchmark.
+Ten of those incidents are deliberately adversarial: wording that shares no
+vocabulary with the tests, tests that are lexically similar but irrelevant,
+several conditions at once, combination gaps, empty versus null, and reports too
+vague to judge at all. They exist to make the number honest rather than
+flattering, and two of them still fail (below).
 
-The one remaining mismatch is deliberate: an incident with no extractable
-condition and no decisive behavioural signal is reported as `PARTIAL` rather
-than `COVERED`. BlindSpot declines to claim coverage without structured
-evidence, because a false "covered" is the most dangerous error this product can
-make.
+**Read this number with the right caveat.** The ground-truth labels were written
+before the engine was tuned, but several were revised during development where
+the original label contradicted the specification's own definitions, or
+contradicted another label in the same file. One example of each: an input that
+*is* exercised at a different value was labelled `NOT_COVERED`, when the spec's
+flagship 100%-discount example calls exactly that case `PARTIAL`; and
+`invalid_email_format` was labelled `NOT_COVERED` while `null_email_profile`,
+which has the identical structure (same field, same feature, exercised but never
+at the failing value), was labelled `PARTIAL`. Each revised label carries its
+justification in `data/evaluation/ground_truth.json`. Because labels and engine
+were refined in the same effort, treat this as a development signal, not an
+independent benchmark.
+
+### The four verdicts
+
+`COVERED`, `PARTIAL` and `NOT_COVERED` are the answers. `INSUFFICIENT_EVIDENCE`
+is the refusal, and it is returned when the report gives nothing to compare:
+no conditions, no behavioural signals, and no shared wording specific enough to
+mean anything. "Customers reported that the orders page looked wrong" shares
+`orders` and `page` with most of the suite, which is vocabulary, not evidence.
+
+The distinction from `NOT_COVERED` is deliberate. "Not covered" is a positive
+finding: the suite was searched and the scenario is missing. An incident that
+names its area and finds nothing related there still gets `NOT_COVERED`. An
+incident that never described a scenario gets `INSUFFICIENT_EVIDENCE`, records
+no gap, and is kept out of the recurring blind spots, so an unclear report
+cannot inflate a pattern. Its recommendations address the report rather than the
+test suite.
+
+### The two remaining mismatches
+
+Both are the same limitation and both are kept in the dataset on purpose:
+recognising that a "full-value voucher" is a 100% discount, or that signing in
+with "the wrong secret" is the incorrect-password test, requires the meaning of
+the words rather than the words themselves. The deterministic engine declines
+instead of guessing, which is the intended behaviour. Semantic extraction is
+what should close them; deleting or relabelling them would hide the one
+limitation the evaluation most needs to report.
 
 ---
 

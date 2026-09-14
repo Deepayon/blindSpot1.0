@@ -34,6 +34,17 @@ class DomainModel(BaseModel):
     model_config = ConfigDict(populate_by_name=True, use_enum_values=False)
 
 
+#: Placeholder used when a feature could not be determined. It is a marker, not
+#: a name, so it must never reach retrieval or comparison: indexed as text it
+#: matches tests about "an unknown user" and manufactures relationships that do
+#: not exist.
+UNKNOWN_FEATURE = "Unknown"
+
+
+def _feature_text(feature: str) -> str:
+    return "" if feature == UNKNOWN_FEATURE else feature
+
+
 # --------------------------------------------------------------------------
 # Tests
 # --------------------------------------------------------------------------
@@ -70,7 +81,7 @@ class NormalizedTest(DomainModel):
         """
         parts = [
             self.name.replace("_", " "),
-            self.feature,
+            _feature_text(self.feature),
             self.scenario,
             self.expected_behavior,
             " ".join(self.tags),
@@ -145,7 +156,7 @@ class NormalizedIncident(DomainModel):
     def searchable_text(self) -> str:
         parts = [
             self.title,
-            self.feature,
+            _feature_text(self.feature),
             self.scenario,
             self.description,
             self.failure,
@@ -194,6 +205,16 @@ class Evidence(DomainModel):
     production_value: str | None = None
     test_value: str | None = None
     test_id: str | None = None
+    #: Where the cited test lives, so a reader can open it rather than take the
+    #: statement on trust. Absent for facts that cite no single test.
+    test_source: str | None = None
+    test_line: int | None = None
+
+    @property
+    def location(self) -> str | None:
+        if not self.test_source:
+            return None
+        return f"{self.test_source}:{self.test_line}" if self.test_line else self.test_source
 
 
 class ComparisonDebug(DomainModel):
@@ -261,3 +282,8 @@ class BlindSpotPattern(DomainModel):
     features: list[str] = Field(default_factory=list)
     example_incident_ids: list[str] = Field(default_factory=list)
     summary: str = ""
+    #: The feature carrying most of this pattern, and its share of it. A pattern
+    #: concentrated in one area is that area's problem, not the organisation's,
+    #: and reporting it as the latter would be misleading.
+    concentrated_in: str = ""
+    concentration: float = 0.0

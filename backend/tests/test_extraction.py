@@ -5,11 +5,12 @@ import pytest
 
 from app.domain.text import as_number, normalize, values_equivalent
 from app.intelligence.extraction import (
+    derive_feature,
     derive_test_signals,
     detect_signals,
     extract_conditions,
-    infer_feature,
 )
+from app.intelligence.vocabulary import build_vocabulary
 
 
 class TestConditionExtraction:
@@ -46,28 +47,81 @@ class TestConditionExtraction:
         assert conditions["page"] == "10000"
 
 
-class TestFeatureInference:
+class TestFeatureDerivation:
+    """A feature name comes from where a test lives, never from a keyword list.
+
+    The previous implementation hardcoded seven e-commerce domains, which meant
+    every test in an insurance or logistics suite filed as "Unknown".
+    """
+
     @pytest.mark.parametrize(
-        "text,expected",
+        "source,expected",
         [
-            ("Checkout failed with a discount coupon", "Checkout"),
-            ("Payment gateway declined the card", "Payments"),
-            ("test_login_with_an_unknown_username", "Authentication"),
-            ("test_payments", "Payments"),
-            ("Searching for a product by name", "Search"),
-            ("Order confirmation email is sent", "Orders"),
+            # The directory is the feature; the file is the scenario within it.
+            ("tests/checkout/test_discounts.py", "Checkout"),
+            ("tests/payments/test_refunds.py", "Payments"),
+            # Flat layout: the file name is the only signal available.
+            ("test_payments.py", "Payments"),
+            ("tests/test_authentication.py", "Authentication"),
+            # A worksheet states its own subject.
+            ("regression_suite.xlsx[Notifications]", "Notifications"),
+            # Domains the old hardcoded list could never have matched.
+            ("src/claims_adjudication/test_eligibility.py", "Claims Adjudication"),
+            ("e2e/specs/underwriting/policy.spec.ts", "Underwriting"),
+            ("tests/freight_dispatch/test_routing.py", "Freight Dispatch"),
         ],
     )
-    def test_infers_feature(self, text, expected):
-        assert infer_feature(text, default="Unknown") == expected
+    def test_derives_feature_from_provenance(self, source, expected):
+        assert derive_feature(source, default="Unknown") == expected
 
-    def test_unknown_when_nothing_matches(self):
-        assert infer_feature("The quick brown fox", default="Unknown") == "Unknown"
+    @pytest.mark.parametrize("source", ["", "tests/__init__.py", "tests/conftest.py", "src/utils/"])
+    def test_structural_paths_yield_no_feature(self, source):
+        assert derive_feature(source, default="Unknown") == "Unknown"
 
-    def test_plural_and_gerund_forms_match(self):
-        """Regression: `test_payments.py` matched no keyword, so its tests were "Unknown"."""
-        assert infer_feature("payments", default="Unknown") == "Payments"
-        assert infer_feature("Searching", default="Unknown") == "Search"
+
+class TestLearnedVocabulary:
+    """Incidents are classified against the features the corpus actually uses."""
+
+    def _corpus(self):
+        from tests.conftest import make_test
+
+        return [
+            make_test(f"U-{i}", f"underwriting_case_{i}", "Underwriting",
+                      "Underwriting risk assessment for a new policy application")
+            for i in range(4)
+        ] + [
+            make_test(f"C-{i}", f"claims_case_{i}", "Claims",
+                      "Claims adjudication after a submitted accident report")
+            for i in range(4)
+        ]
+
+    def test_learns_features_from_the_corpus(self):
+        vocabulary = build_vocabulary(self._corpus())
+        assert set(vocabulary.features) == {"Underwriting", "Claims"}
+
+    def test_classifies_an_incident_into_a_learned_feature(self):
+        vocabulary = build_vocabulary(self._corpus())
+        assert vocabulary.classify("Risk assessment failed for a new policy") == "Underwriting"
+        assert vocabulary.classify("Adjudication of an accident report crashed") == "Claims"
+
+    def test_unrelated_text_is_not_forced_into_a_feature(self):
+        vocabulary = build_vocabulary(self._corpus())
+        assert vocabulary.classify("The quick brown fox") == "Unknown"
+
+    def test_empty_corpus_classifies_nothing(self):
+        assert build_vocabulary([]).classify("anything at all") == "Unknown"
+
+    def test_a_feature_with_too_few_tests_is_not_learned(self):
+        """One oddly-named test must not define a whole feature."""
+        from tests.conftest import make_test
+
+        corpus = [*self._corpus(), make_test("X-1", "odd", "Typo Feature", "A one-off test")]
+        assert "Typo Feature" not in build_vocabulary(corpus).features
+
+    def test_supplied_feature_is_matched_against_the_known_set(self):
+        vocabulary = build_vocabulary(self._corpus())
+        assert vocabulary.matches("underwriting") == "Underwriting"
+        assert vocabulary.matches("Nonexistent") is None
 
 
 class TestSignalDetection:

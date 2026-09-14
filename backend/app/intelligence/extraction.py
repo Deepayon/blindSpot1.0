@@ -26,82 +26,68 @@ from ..domain.text import normalize, tokenize
 # Features
 # --------------------------------------------------------------------------
 
-#: Canonical feature -> keywords that imply it. Order matters only for ties.
-FEATURE_KEYWORDS: dict[str, tuple[str, ...]] = {
-    "Authentication": (
-        "auth", "authentication", "login", "logout", "signin", "signup", "register",
-        "password", "credential", "session", "token", "mfa", "otp", "2fa", "sso",
-        # "username" belongs here rather than under Profile: a test named
-        # `test_login_with_an_unknown_username` is an authentication test, and
-        # filing it under Profile hid it from every Authentication incident.
-        "username",
-    ),
-    "Checkout": (
-        "checkout", "cart", "basket", "coupon", "discount", "promo", "voucher",
-        "shipping", "tax", "total", "subtotal",
-    ),
-    "Payments": (
-        "payment", "pay", "card", "charge", "billing", "invoice", "refund",
-        "gateway", "transaction", "settlement", "chargeback", "wallet",
-    ),
-    "Orders": (
-        "order", "orders", "fulfilment", "fulfillment", "shipment", "delivery",
-        "cancellation", "cancel", "return", "tracking",
-    ),
-    "Profile": (
-        "profile", "account", "address", "preference", "avatar",
-        "display name", "settings", "personal",
-    ),
-    "Search": (
-        "search", "query", "filter", "facet", "sort", "autocomplete", "suggestion",
-        "pagination", "index", "relevance",
-    ),
-    "Notifications": (
-        "notification", "notify", "email", "sms", "push", "alert", "webhook",
-        "digest", "subscription", "unsubscribe",
-    ),
-}
+#: Path and file-name noise that is never a feature name.
+_FEATURE_NOISE = frozenset(
+    {
+        "test", "tests", "testing", "spec", "specs", "src", "app", "apps", "lib",
+        "suite", "suites", "e2e", "it", "integration", "unit", "functional",
+        "regression", "smoke", "acceptance", "automation", "qa", "cases", "case",
+        "main", "root", "project", "code", "py", "js", "ts", "feature", "features",
+        "init", "conftest", "helpers", "helper", "utils", "util", "common",
+        "fixtures", "fixture", "support", "base", "sheet", "data",
+    }
+)
 
-#: Features whose keywords are strong enough to win over a generic co-occurrence.
-_FEATURE_PRIORITY = ("Payments", "Checkout", "Authentication", "Orders", "Notifications", "Search", "Profile")
+#: Upper bound on a derived feature name, so a long path segment cannot become
+#: an unreadable label.
+_MAX_FEATURE_WORDS = 3
 
 
-def infer_feature(*texts: str, default: str = "Unknown") -> str:
-    """Pick the most likely feature from one or more pieces of text.
+def derive_feature(source: str, *, default: str = "Unknown") -> str:
+    """Derive a feature name from where a test lives, not from what it says.
 
-    Scores every feature by keyword hits, weighting multi-word keywords higher
-    because they are far less ambiguous than a single token like "order".
+    An organisation's own taxonomy is already present in its artefacts: the
+    module a pytest file sits in, the sheet name of a workbook, the module
+    column of an export. Reading the name from provenance works for any domain,
+    whereas a keyword list only works for the domain it was written for.
+
+    `tests/checkout/test_discounts.py` -> "Checkout"
+    `test_payments.py`                 -> "Payments"
+    `claims_adjudication`              -> "Claims Adjudication"
     """
-    haystack = normalize(" ".join(t for t in texts if t))
-    if not haystack:
+    if not source:
         return default
 
-    scores: dict[str, float] = {}
-    for feature, keywords in FEATURE_KEYWORDS.items():
-        score = 0.0
-        for keyword in keywords:
-            if " " in keyword:
-                if keyword in haystack:
-                    score += 3.0  # multi-word keywords are the least ambiguous
-            # The suffix group matters more than it looks: without it a module
-            # named `test_payments.py` matched no Payments keyword at all, and
-            # "Searching for a product" matched no Search keyword, so those
-            # tests fell back to "Unknown" and became invisible to retrieval.
-            elif re.search(rf"\b{re.escape(keyword)}(?:e?s|ing|ed)?\b", haystack):
-                score += 2.0
-        if score:
-            scores[feature] = score
+    # A worksheet states its own subject, so `suite.xlsx[Claims]` is "Claims".
+    # The Excel parser records provenance in exactly this form.
+    sheet = re.search(r"\[([^\]]+)\]\s*$", source)
+    if sheet:
+        source = sheet.group(1)
 
-    if not scores:
+    raw = source.replace("\\", "/")
+    segments = [segment for segment in raw.split("/") if segment.strip()]
+    if not segments:
         return default
-    best = max(scores.values())
-    winners = [f for f, s in scores.items() if s == best]
-    if len(winners) == 1:
-        return winners[0]
-    for feature in _FEATURE_PRIORITY:
-        if feature in winners:
-            return feature
-    return winners[0]
+
+    # Directories before the file. In `tests/checkout/test_discounts.py` the
+    # feature is Checkout and "discounts" is the scenario within it, so the
+    # nearest meaningful directory is the better label. Only when there is no
+    # such directory does the file name become the feature, which is the flat
+    # `test_payments.py` case.
+    directories = list(reversed(segments[:-1]))
+    filename = segments[-1].rsplit(".", 1)[0] if "." in segments[-1] else segments[-1]
+
+    for candidate in [*directories, filename]:
+        words = [
+            word
+            for word in re.split(r"[^A-Za-z0-9]+", normalize(candidate))
+            if word and word not in _FEATURE_NOISE and not word.isdigit()
+        ]
+        if not words:
+            continue
+        return " ".join(word.capitalize() for word in words[:_MAX_FEATURE_WORDS])
+
+    return default
 
 
 # --------------------------------------------------------------------------
@@ -134,9 +120,17 @@ SIGNAL_PATTERNS: dict[str, re.Pattern[str]] = {
         r"unresponsive|hung|no response)\b"
     ),
     "retry": re.compile(r"\b(retry|retries|retried|re[- ]?attempt|resend|resubmit|backoff|replay)\b"),
-    "concurrency": re.compile(r"\b(concurrent|concurrency|race condition|simultaneous|parallel|at the same time|deadlock|lock contention|double[- ]?submit)\b"),
-    "permission": re.compile(r"\b(permission|authoriz|authoris|role|rbac|privilege|forbidden|403|access denied|unauthorized|401|scope)\b"),
-    "error_handling": re.compile(r"\b(unhandled|uncaught|exception|stack trace|500|crash|traceback|error response|fails? gracefully|division by zero)\b"),
+    # "in flight" is everyday engineering English for an operation that has
+    # started and not finished, which is exactly the overlap that makes a
+    # second request concurrent.
+    "concurrency": re.compile(r"\b(concurrent|concurrency|race condition|simultaneous|parallel|at the same time|deadlock|lock contention|double[- ]?submit|in[- ]flight)\b"),
+    # Stems, not bare words: incident prose says "permitted" and "authorised"
+    # far more often than "permission". The previous spelling ended each
+    # alternative with \b, so `authoriz` could never match "authorized" at all.
+    "permission": re.compile(r"\b(permission\w*|permit\w*|authoris\w*|authoriz\w*|role\w*|rbac|privilege\w*|forbidden|403|access denied|401|scope\w*)\b"),
+    # Bare "error" is useless here, every incident contains it. These are the
+    # phrasings that specifically mean an error escaped unhandled to the user.
+    "error_handling": re.compile(r"\b(unhandled|uncaught|exception|stack trace|500|crash|traceback|error (?:response|page|screen)|(?:server|internal) error|fails? gracefully|division by zero)\b"),
     "unicode": re.compile(r"\b(unicode|utf-?8|emoji|non[- ]?ascii|accent|cyrillic|chinese|japanese|encoding|charset|diacritic)\b"),
     "data_format": re.compile(r"\b(format|json|xml|csv|date format|iso[- ]?8601|serial|parse|decimal|precision|currency)\b"),
     # Bare "state"/"status" matched almost everything (an assertion on
@@ -146,7 +140,23 @@ SIGNAL_PATTERNS: dict[str, re.Pattern[str]] = {
         r"\b(transition|lifecycle|state machine|out of order|inconsistent state|followed by|"
         r"sequence|moved from|reverted|"
         r"already (?:cancelled|canceled|completed|shipped|paid|captured|refunded|expired|"
-        r"unsubscribed|submitted|sent))\b|\bafter\b"
+        r"unsubscribed|submitted|sent))\b"
+        # "after" must join two states to mean an ordering. Bare \bafter\b
+        # matched "retry after a failed attempt", which made an ordinary retry
+        # test read as state-transition coverage for unrelated sequence bugs.
+        r"|\b(?:before|after)\s+(?:the\s+|it\s+|being\s+)?\w+\s+(?:was|were|had|is|are)\b"
+        r"|\b(?:before|after)\s+(?:capture|cancellation|shipment|refund|settlement|payment|"
+        r"confirmation|delivery|submission)\b"
+        # "after unsubscribing", "before shipping": a gerund after an ordering
+        # word names the event that came first.
+        r"|\b(?:before|after)\s+\w+ing\b"
+        # "after a user unsubscribed", "before the order shipped". A closed list
+        # of lifecycle verbs, not any past tense: "after a timeout issued the
+        # refund twice" has the same grammatical shape but describes the
+        # failure, not a completed state the system moved out of.
+        r"|\b(?:before|after)\s+(?:the|a|an|its|their)\s+\w+\s+"
+        r"(?:unsubscribed|subscribed|cancelled|canceled|completed|shipped|expired|captured|"
+        r"paid|refunded|settled|closed|finished|delivered|confirmed|arrived|started)\b"
     ),
     # "browser"/"device" removed: they describe where a user was, not an
     # environment-specific behaviour, and made ordinary UI incidents look

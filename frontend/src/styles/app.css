@@ -265,6 +265,9 @@ code, .mono { font-family: var(--mono); font-size: 12.5px; }
 .evidence li strong { color: var(--text); font-weight: 600; }
 .evidence li.is-gap::before { background: var(--missing); }
 .evidence li.is-match::before { background: var(--covered); }
+/* Neither covered nor missing: the dimension is touched but no value is
+   recorded, so it cannot be compared either way. */
+.evidence li.is-unknown::before { background: var(--partial); }
 
 .gap-box {
   border: 1px solid var(--border); border-radius: var(--radius);

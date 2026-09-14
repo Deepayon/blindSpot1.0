@@ -36,7 +36,7 @@ class GapAnalysisEngine:
         self.settings = settings or get_settings()
         self.index = index
         self.retriever = TestRetriever(index, self.settings)
-        self.comparator = ScenarioComparator()
+        self.comparator = ScenarioComparator(is_distinctive=index.is_distinctive_term)
         self.coverage_classifier = CoverageClassifier()
         self.gap_classifier = GapClassifier()
         self.explainer = Explainer()
@@ -55,7 +55,15 @@ class GapAnalysisEngine:
         )
 
         reasoning_source = "deterministic"
-        if self.enricher.active and self.enricher.enrich_incident(incident):
+        # Extraction runs only for an incident that has not been analysed
+        # before. A stored incident is re-analysed from its persisted facts, so
+        # the same incident cannot change verdict because the model answered
+        # differently today.
+        if (
+            self.enricher.active
+            and not incident.extra.get("extraction_final")
+            and self.enricher.extract_incident(incident, self.index.vocabulary.features)
+        ):
             reasoning_source = "deterministic+llm"
 
         # An empty index cannot support any verdict, saying "not covered" would

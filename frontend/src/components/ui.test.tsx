@@ -89,7 +89,7 @@ describe("formatting helpers", () => {
   });
 
   it("never renders an invalid date as text", () => {
-    expect(formatDate(null)).toBe(", ");
-    expect(formatDate("not a date")).toBe(", ");
+    expect(formatDate(null)).toBe("Not recorded");
+    expect(formatDate("not a date")).toBe("Not recorded");
   });
 });

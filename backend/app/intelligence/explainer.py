@@ -38,6 +38,19 @@ def phrase(signal: str) -> str:
     return SIGNAL_PHRASES.get(signal, signal.replace("_", " "))
 
 
+def _cite(test) -> dict[str, object]:
+    """Location fields for an evidence item that names a specific test.
+
+    Included so a reader can open the test and check the claim rather than
+    trusting the sentence.
+    """
+    return {
+        "test_id": test.id,
+        "test_source": test.source or None,
+        "test_line": test.line_number,
+    }
+
+
 def _join(items: list[str]) -> str:
     if not items:
         return ""
@@ -56,6 +69,34 @@ class Explainer:
     ) -> list[Evidence]:
         incident = comparison.incident
         evidence: list[Evidence] = []
+
+        if coverage is Coverage.INSUFFICIENT_EVIDENCE and comparison.comparisons:
+            # Naming a "closest test" here would imply a relationship the
+            # analysis could not establish. State the absence instead.
+            best = comparison.best
+            evidence.append(
+                Evidence(
+                    kind="insufficient_evidence",
+                    statement=(
+                        "No input values, affected fields or behavioural conditions could be "
+                        "extracted from this report, so there is nothing to compare against "
+                        "the test suite."
+                    ),
+                )
+            )
+            if best is not None:
+                evidence.append(
+                    Evidence(
+                        kind="insufficient_evidence",
+                        statement=(
+                            f"The closest test, {best.test.id}, shares only wording common "
+                            f"across the suite with this report. That is not evidence that "
+                            f"the scenario was covered, nor that it was missed."
+                        ),
+                        **_cite(best.test),
+                    )
+                )
+            return evidence
 
         for key, value in incident.conditions.items():
             evidence.append(
@@ -94,7 +135,7 @@ class Explainer:
                     else f"Closest test {best.test.id} belongs to a different feature "
                     f"({best.test.feature} vs {incident.feature})."
                 ),
-                test_id=best.test.id,
+                **_cite(best.test),
             )
         )
 
@@ -103,21 +144,46 @@ class Explainer:
         for key in incident.conditions:
             tested_values = comparison.tested_values_for(key)
             production_value = str(incident.conditions[key])
-            if not tested_values:
-                evidence.append(
-                    Evidence(
-                        kind="condition_absent",
-                        statement=f"No related test exercises '{key}' at any value.",
-                        production_value=production_value,
-                    )
-                )
-                continue
+            mentioning = [
+                comp
+                for comp in comparison.judged
+                for c in comp.conditions
+                if c.key == key and c.status == "MENTIONED"
+            ]
             matched = any(
                 c.matched
                 for comp in comparison.judged
                 for c in comp.conditions
                 if c.key == key
             )
+
+            if not tested_values:
+                if mentioning:
+                    # The dimension is touched, but the export records no value,
+                    # so it cannot be compared. Saying so is more accurate than
+                    # claiming nothing exercises it.
+                    cited = mentioning[0].test
+                    evidence.append(
+                        Evidence(
+                            kind="condition_mentioned",
+                            statement=(
+                                f"{cited.id} covers '{key}', but its source records no value, "
+                                f"so it cannot be compared against {production_value}."
+                            ),
+                            production_value=production_value,
+                            **_cite(cited),
+                        )
+                    )
+                else:
+                    evidence.append(
+                        Evidence(
+                            kind="condition_absent",
+                            statement=f"No related test exercises '{key}' at any value.",
+                            production_value=production_value,
+                        )
+                    )
+                continue
+
             if matched:
                 evidence.append(
                     Evidence(
@@ -128,6 +194,17 @@ class Explainer:
                     )
                 )
             else:
+                # Name the test that actually varies this input, so the reader
+                # can see which one to extend rather than hunting for it.
+                citing = next(
+                    (
+                        comp
+                        for comp in comparison.judged
+                        for c in comp.conditions
+                        if c.key == key and c.status == "DIFFERENT"
+                    ),
+                    None,
+                )
                 evidence.append(
                     Evidence(
                         kind="condition_difference",
@@ -137,6 +214,7 @@ class Explainer:
                         ),
                         production_value=production_value,
                         test_value=", ".join(tested_values),
+                        **(_cite(citing.test) if citing else {}),
                     )
                 )
 
@@ -166,9 +244,9 @@ class Explainer:
                     kind="effectiveness",
                     statement=(
                         f"Test {best.test.id} represents this scenario, yet production still "
-                        f"failed, its assertions or data may not protect the behaviour."
+                        f"failed, so its assertions or data may not protect the behaviour."
                     ),
-                    test_id=best.test.id,
+                    **_cite(best.test),
                 )
             )
 
@@ -302,9 +380,17 @@ class Explainer:
         best = comparison.best
 
         if coverage is Coverage.INSUFFICIENT_EVIDENCE:
+            if not comparison.comparisons:
+                return (
+                    "There are not enough indexed tests to judge whether this scenario was "
+                    "covered. Index a test source before drawing a conclusion."
+                )
             return (
-                "There are not enough indexed tests to judge whether this scenario was "
-                "covered. Index a test source before drawing a conclusion."
+                "This report does not describe the conditions that triggered the failure, so "
+                "BlindSpot cannot determine whether a test covered it. The related tests below "
+                "share only general wording with the report, which is not evidence either way. "
+                "Add the input values, the affected field or the sequence of events, then "
+                "re-analyse."
             )
 
         if best is None or coverage is Coverage.NOT_COVERED and not comparison.any_feature_match:

@@ -18,6 +18,7 @@ from pathlib import Path
 
 from ..config.logging_conf import get_logger
 from ..config.settings import Settings, get_settings
+from ..intelligence.extraction import derive_feature
 from ..security import PathPolicyError, validate_repository_path
 from .base import ParseOutcome, TestParser
 from .jest_parser import JestTestParser
@@ -162,10 +163,15 @@ class RepositoryScanner:
                     )
                     continue
 
-                # Report paths relative to the root, absolute paths on a private
-                # machine are needless detail in the UI.
+                # Report paths relative to the root: absolute paths on a private
+                # machine are needless detail in the UI, and the feature must be
+                # derived from the path *within* the project. Deriving it from
+                # the absolute path made every test take the name of the
+                # checkout directory instead of its own module.
+                relative = resolved.relative_to(root).as_posix()
                 for test in file_outcome.tests:
-                    test.source = resolved.relative_to(root).as_posix()
+                    test.source = relative
+                    test.feature = derive_feature(relative, default=test.feature or "Unknown")
 
                 # `extend` carries the parser's own scanned/skipped counts, so a
                 # file the parser rejected (syntax error) is reported as skipped

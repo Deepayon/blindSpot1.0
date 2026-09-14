@@ -116,6 +116,7 @@ class TestRetriever:
         # nothing just because everything scored below the floor.
         if not kept and scored:
             kept = scored[:3]
+        kept = self._keep_signal_witnesses(kept, scored, incident_signals)
         debug.considered_count = len(kept)
 
         log.info(
@@ -129,3 +130,50 @@ class TestRetriever:
             },
         )
         return kept, debug
+
+    def _keep_signal_witnesses(
+        self,
+        kept: list[RetrievedTest],
+        scored: list[RetrievedTest],
+        incident_signals: set[str],
+    ) -> list[RetrievedTest]:
+        """Ensure each production signal keeps one test that exercises it.
+
+        A dominant candidate raises the relative floor above everything else. If
+        production retried a request while the first was still in flight, the
+        retry test can score 0.91 and push the concurrency test out of the
+        result entirely, leaving the analyser unable to see that the two are
+        tested separately and never together. That combination is precisely the
+        finding worth reporting, so one witness per signal is retained even
+        below the floor.
+
+        Only signals the incident actually carries are considered, at most one
+        test is added per signal, and only tests in the incident's own feature
+        qualify. That last restriction matters: a Payments test that refunds
+        concurrently says nothing about whether *Checkout* handles concurrent
+        submissions, and admitting it as a witness would let one feature's
+        coverage silently answer for another's.
+        """
+        if not incident_signals or not scored:
+            return kept
+
+        present = {s for item in kept for s in (item.test.extra.get("signals") or [])}
+        chosen = {item.test.id for item in kept}
+        additions: list[RetrievedTest] = []
+
+        for signal in sorted(incident_signals - present):
+            witness = next(
+                (
+                    item
+                    for item in scored
+                    if item.test.id not in chosen
+                    and item.feature_match
+                    and signal in (item.test.extra.get("signals") or [])
+                ),
+                None,
+            )
+            if witness is not None:
+                additions.append(witness)
+                chosen.add(witness.test.id)
+
+        return kept + additions

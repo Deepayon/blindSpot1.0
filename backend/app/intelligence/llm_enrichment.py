@@ -2,17 +2,24 @@
 
 Two narrowly-scoped jobs, both of which degrade cleanly to a no-op:
 
-  1. `enrich_incident`, recover the *feature* when the deterministic rules
-     could not identify one at all. This is the single place a model can widen
-     what gets retrieved, it is a closed seven-value set, and it only applies to
-     a genuine blank.
+  1. `extract_incident`, read the report and contribute structured facts the
+     deterministic rules missed. A regex vocabulary only understands the phrasing
+     it was written for; a model understands the phrasing a customer actually
+     used. That is the single biggest accuracy constraint in the product, so the
+     model is given this job.
 
-     It explicitly does NOT supply conditions or signals: those are the direct
-     inputs to the verdict, and accepting them measurably degraded accuracy on
-     the sample dataset while forfeiting the reproducibility guarantee. What
-     the model read is kept on the incident for the explanation step instead.
+     It is made safe rather than trusted. Every contributed fact must carry a
+     verbatim quote from the report, which is verified against the text, so an
+     invented condition is discarded instead of silently changing a verdict.
+     Deterministic values always win, signals come from a fixed vocabulary, and
+     features from the vocabulary learned from the customer's own suite.
+
   2. `refine_explanation`, rewrite the templated explanation more fluently. It
      receives the already-computed facts and is told not to add new ones.
+
+The verdict itself is never the model's. Comparison, classification, confidence
+and risk stay deterministic, and the extracted facts are persisted so that
+re-analysing an incident reuses them rather than asking again.
 
 What is never sent: repository source code, file paths, or raw test bodies. Only
 normalised metadata leaves the machine, per spec §39.
@@ -27,21 +34,33 @@ from typing import Any
 
 from ..config.logging_conf import get_logger
 from ..domain.models import NormalizedIncident
+from ..domain.text import normalize
 from ..providers.llm import LLMProvider
 from .comparator import ScenarioComparison
+from .extraction import SIGNAL_PATTERNS
 
 log = get_logger(__name__)
 
-_INCIDENT_SYSTEM = """You extract structured facts from production incident reports for a QA tool.
-Return ONLY a JSON object with these keys:
-  "feature":    one of Authentication, Checkout, Payments, Orders, Profile, Search, Notifications, or Unknown
-  "conditions": object of input-name -> value that the production request actually used
-  "signals":    array from [null, empty, missing_field, invalid, boundary_max, boundary_min,
-                timeout, retry, concurrency, permission, unicode, error_handling,
-                state_transition, data_format, environment]
+_INCIDENT_SYSTEM = """You extract structured facts from a production incident report for a test-coverage tool.
+
+Return ONLY a JSON object:
+{
+  "feature": "<one of the FEATURES listed in the prompt, or Unknown>",
+  "conditions": [
+    {"name": "<input name>", "value": "<value production used>", "quote": "<verbatim span from the report>"}
+  ],
+  "signals": [
+    {"name": "<one of the SIGNALS listed in the prompt>", "quote": "<verbatim span from the report>"}
+  ]
+}
+
 Rules:
-  - Report only what the text states. Never infer values that are not present.
-  - If you cannot determine a field, use "Unknown", {} or [].
+  - "quote" MUST be copied character for character from the report. It is checked.
+    If you cannot quote it, omit the item.
+  - A condition is an input the failing request actually used, such as a discount
+    percentage, a field that was null, or a role. Not a symptom, not an outcome.
+  - "feature" must be chosen from the provided list. Use "Unknown" if none fits.
+  - Report only what the text states. Never infer a value that is not present.
   - Do not explain. Output JSON only."""
 
 _EXPLANATION_SYSTEM = """You rewrite a test-coverage finding for senior engineers.
@@ -52,15 +71,30 @@ Rules:
   - Two to three sentences, plain and specific. No preamble, no bullet points.
 Return ONLY {"explanation": "..."}."""
 
-#: Signals the model is allowed to contribute.
-_ALLOWED_SIGNALS = {
-    "null", "empty", "missing_field", "invalid", "boundary_max", "boundary_min",
-    "timeout", "retry", "concurrency", "permission", "unicode", "error_handling",
-    "state_transition", "data_format", "environment",
-}
-_ALLOWED_FEATURES = {
-    "Authentication", "Checkout", "Payments", "Orders", "Profile", "Search", "Notifications",
-}
+#: Signals the model may contribute. Anything outside this set is discarded, so
+#: an invented signal cannot reach the classifier.
+_ALLOWED_SIGNALS = frozenset(SIGNAL_PATTERNS)
+
+#: Caps on what one response may add, so a verbose or looping model cannot
+#: flood the comparison with conditions.
+MAX_LLM_CONDITIONS = 6
+MAX_LLM_SIGNALS = 6
+
+#: A quote shorter than this proves nothing: "a" appears in every report.
+MIN_QUOTE_CHARS = 6
+
+
+def _quote_supported(quote: object, haystack: str) -> bool:
+    """Whether a claimed quote really appears in the incident text.
+
+    This is the guard that makes model-supplied facts safe to use. A condition
+    the model invented cannot be evidenced, so requiring a verifiable quote
+    turns hallucination from an invisible failure into a discarded item.
+    Comparison is on normalised text so punctuation and casing do not matter.
+    """
+    if not isinstance(quote, str) or len(quote.strip()) < MIN_QUOTE_CHARS:
+        return False
+    return normalize(quote).strip() in haystack
 
 
 class LLMEnricher:
@@ -73,53 +107,104 @@ class LLMEnricher:
 
     # -- incident understanding --------------------------------------------
 
-    def enrich_incident(self, incident: NormalizedIncident) -> bool:
-        """Fill gaps the deterministic extractor left. Returns True if it changed anything."""
+    def extract_incident(
+        self, incident: NormalizedIncident, features: list[str] | None = None
+    ) -> bool:
+        """Add facts the deterministic rules missed. Returns True if it changed anything.
+
+        The model reads language far better than a regex vocabulary, which is
+        why it is allowed to contribute conditions and signals at all. Three
+        rules keep that safe:
+
+          1. Every item must carry a verbatim quote from the report, which is
+             checked against the text. Unquotable items are dropped.
+          2. Deterministic values always win. The model may only add a key the
+             rules did not produce, never overwrite one.
+          3. Signals and features are restricted to known vocabularies.
+
+        Reproducibility is preserved by the caller, which persists the merged
+        result and reuses it on re-analysis rather than extracting again.
+        """
         if not self.active:
             return False
 
+        known = features or []
         payload = self.provider.complete_json(
             system=_INCIDENT_SYSTEM,
-            prompt=f"Incident report:\n\n{incident.description[:4000]}",
-            max_tokens=600,
+            prompt=(
+                f"FEATURES: {', '.join(known) if known else 'Unknown'}\n"
+                f"SIGNALS: {', '.join(sorted(_ALLOWED_SIGNALS))}\n\n"
+                f"Incident report:\n\n{incident.description[:4000]}"
+            ),
+            max_tokens=800,
         )
         if not payload:
             return False
 
+        haystack = normalize(incident.description)
+        provenance: dict[str, str] = {}
+        rejected = 0
         changed = False
 
         feature = payload.get("feature")
         if (
             incident.feature in {"Unknown", "", None}
             and isinstance(feature, str)
-            and feature in _ALLOWED_FEATURES
+            and feature in set(known)
         ):
             incident.feature = feature
+            provenance["feature"] = "model"
             changed = True
 
-        # Conditions and signals are deliberately NOT taken from the model, even
-        # when the deterministic extractor found none.
-        #
-        # They are the direct inputs to the coverage verdict: one extra
-        # condition downgrades COVERED to PARTIAL, one extra signal invents a
-        # gap. Measured against the sample dataset, letting the model supply
-        # them cost two correct verdicts out of eight; restricting it to empty
-        # findings still cost one. Accepting them at all would also forfeit the
-        # reproducibility guarantee, the same incident could be judged
-        # differently as the model drifts.
-        #
-        # The model's reading of the incident is still used: it is passed to
-        # `refine_explanation`, where it can improve the wording without
-        # touching the classification.
-        for field in ("conditions", "signals"):
-            suggested = payload.get(field)
-            if suggested:
-                incident.extra.setdefault("llm_suggested", {})[field] = suggested
+        added = 0
+        for item in payload.get("conditions") or []:
+            if added >= MAX_LLM_CONDITIONS:
+                break
+            if not isinstance(item, dict):
+                continue
+            name = str(item.get("name") or "").strip().lower().replace(" ", "_")[:40]
+            value = item.get("value")
+            if not name or value is None or name in incident.conditions:
+                continue
+            if not _quote_supported(item.get("quote"), haystack):
+                rejected += 1
+                continue
+            incident.conditions[name] = str(value)[:80]
+            provenance[f"condition:{name}"] = str(item.get("quote"))[:200]
+            added += 1
+            changed = True
 
-        if changed:
+        added = 0
+        for item in payload.get("signals") or []:
+            if added >= MAX_LLM_SIGNALS:
+                break
+            if not isinstance(item, dict):
+                continue
+            name = str(item.get("name") or "").strip().lower()
+            if name not in _ALLOWED_SIGNALS or name in incident.signals:
+                continue
+            if not _quote_supported(item.get("quote"), haystack):
+                rejected += 1
+                continue
+            incident.signals.append(name)
+            provenance[f"signal:{name}"] = str(item.get("quote"))[:200]
+            added += 1
+            changed = True
+
+        if provenance:
+            # Kept on the incident so the UI can show which facts came from the
+            # model and what text supports each one.
+            incident.extra["extracted_by_model"] = provenance
+
+        if changed or rejected:
             log.info(
-                "incident enriched by llm",
-                extra={"event": "llm.incident_enriched", "incident": incident.id},
+                "incident extraction assisted by llm",
+                extra={
+                    "event": "llm.incident_extracted",
+                    "incident": incident.id,
+                    "accepted": len(provenance),
+                    "rejected_unquoted": rejected,
+                },
             )
         return changed
 

@@ -33,6 +33,9 @@ export interface Evidence {
   production_value?: string | null;
   test_value?: string | null;
   test_id?: string | null;
+  /** Where the cited test lives, so a reader can open it rather than trust the statement. */
+  test_source?: string | null;
+  test_line?: number | null;
 }
 
 export interface Gap {
@@ -134,6 +137,9 @@ export interface BlindSpotPattern {
   features: string[];
   example_incident_ids: string[];
   summary: string;
+  /** The feature carrying most of this pattern, and its share of it. */
+  concentrated_in: string;
+  concentration: number;
 }
 
 export interface TestSourceInfo {

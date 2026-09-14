@@ -5,7 +5,7 @@
  */
 import React, { useRef, useState } from "react";
 import { api } from "../services/api";
-import { useAction, useAsync } from "../hooks/useAsync";
+import { useAction, useAsync, useIndexedFeatures } from "../hooks/useAsync";
 import type { IngestionResult, TestSourceInfo } from "../types";
 import {
   Banner,
@@ -29,6 +29,7 @@ export function TestsPage() {
   const [search, setSearch] = useState("");
   const [feature, setFeature] = useState("");
   const [queryKey, setQueryKey] = useState(0);
+  const features = useIndexedFeatures();
   const tests = useAsync(
     () => api.listTests({ q: search, feature, limit: 100 }),
     [queryKey],
@@ -258,13 +259,11 @@ export function TestsPage() {
               }}
             >
               <option value="">All features</option>
-              {["Authentication", "Checkout", "Payments", "Orders", "Profile", "Search", "Notifications", "Unknown"].map(
-                (name) => (
-                  <option key={name} value={name}>
-                    {name}
-                  </option>
-                ),
-              )}
+              {features.map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))}
             </select>
             <button className="btn btn--sm" onClick={() => setQueryKey((n) => n + 1)}>
               Search

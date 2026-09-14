@@ -1,7 +1,7 @@
 /** Screens 3 & 4, incident submission and analysis result (spec §27-§29). */
 import React, { useEffect, useRef, useState } from "react";
 import { api } from "../services/api";
-import { useAction, useAsync } from "../hooks/useAsync";
+import { useAction, useAsync, useIndexedFeatures } from "../hooks/useAsync";
 import { AnalysisResultView } from "../features/AnalysisResultView";
 import type { AnalysisResult, Coverage, IncidentListItem } from "../types";
 import {
@@ -46,6 +46,7 @@ function IncidentWorkbench({ navigate }: { navigate: (route: string) => void }) 
   const [listKey, setListKey] = useState(0);
   const [step, setStep] = useState(0);
   const fileInput = useRef<HTMLInputElement>(null);
+  const features = useIndexedFeatures();
 
   const analyze = useAction(api.analyze);
   const upload = useAction(api.uploadIncident);
@@ -104,13 +105,11 @@ function IncidentWorkbench({ navigate }: { navigate: (route: string) => void }) 
               disabled={pending}
             >
               <option value="">Detect feature</option>
-              {["Authentication", "Checkout", "Payments", "Orders", "Profile", "Search", "Notifications"].map(
-                (name) => (
-                  <option key={name} value={name}>
-                    {name}
-                  </option>
-                ),
-              )}
+              {features.map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))}
             </select>
             <select
               className="select"
@@ -206,6 +205,7 @@ function IncidentList({ navigate }: { navigate: (route: string) => void }) {
             { value: "COVERED", label: "Covered" },
             { value: "PARTIAL", label: "Partial" },
             { value: "NOT_COVERED", label: "Not covered" },
+            { value: "INSUFFICIENT_EVIDENCE", label: "Insufficient evidence" },
           ].map((option) => (
             <button
               key={option.value}
@@ -256,7 +256,7 @@ function IncidentList({ navigate }: { navigate: (route: string) => void }) {
                   <td className="nowrap">
                     <CoverageBadge coverage={incident.coverage as Coverage | null} />
                   </td>
-                  <td className="nowrap">{titleize(incident.gap_type ?? "") || ", "}</td>
+                  <td className="nowrap">{titleize(incident.gap_type ?? "") || "None"}</td>
                   <td className="nowrap">
                     <RiskBadge risk={incident.risk ?? null} />
                   </td>

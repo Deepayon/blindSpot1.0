@@ -27,9 +27,9 @@ class TestCsvIngestion:
     def test_parses_canonical_export(self, tmp_path: Path):
         path = tmp_path / "tests.csv"
         path.write_text(
-            "Test ID,Test Name,Scenario,Expected Result\n"
-            "TC-001,checkout_without_coupon,Checkout without coupon,Order succeeds\n"
-            "TC-002,checkout_with_discount,Checkout with 10% discount,Order succeeds\n",
+            "Test ID,Test Name,Module,Scenario,Expected Result\n"
+            "TC-001,checkout_without_coupon,Checkout,Checkout without coupon,Order succeeds\n"
+            "TC-002,checkout_with_discount,Checkout,Checkout with 10% discount,Order succeeds\n",
             encoding="utf-8",
         )
         outcome = CsvTestParser().parse(path)
@@ -40,6 +40,30 @@ class TestCsvIngestion:
         assert second.feature == "Checkout"
         assert second.inputs.get("discount") == "10%"
         assert second.expected_behavior == "Order succeeds"
+
+    def test_feature_comes_from_the_export_not_from_guessing_the_text(self, tmp_path: Path):
+        """An export states its own taxonomy. Inferring one from row wording
+        would reintroduce the domain assumption this release removed."""
+        path = tmp_path / "suite.csv"
+        path.write_text(
+            "ID,Name,Module,Scenario,Expected\n"
+            "1,a,Underwriting,Risk assessment for a new policy,Accepted\n"
+            "2,b,Claims,Adjudication of an accident report,Settled\n",
+            encoding="utf-8",
+        )
+        features = [t.feature for t in CsvTestParser().parse(path).tests]
+        assert features == ["Underwriting", "Claims"]
+
+    def test_without_a_module_column_the_feature_is_not_invented(self, tmp_path: Path):
+        path = tmp_path / "checkout_regression.csv"
+        path.write_text(
+            "ID,Name,Scenario,Expected\n1,a,Some scenario about payments,ok\n", encoding="utf-8"
+        )
+        test = CsvTestParser().parse(path).tests[0]
+        # Derived from the file name, which is real provenance, with the
+        # test-type word "regression" dropped as noise. Critically it is not
+        # "Payments", which only a guess from the row text would have produced.
+        assert test.feature == "Checkout"
 
     @pytest.mark.parametrize(
         "header",
@@ -56,7 +80,8 @@ class TestCsvIngestion:
 
         assert len(outcome.tests) == 1
         assert outcome.tests[0].id == "TC-9"
-        assert outcome.tests[0].feature == "Authentication"
+        assert outcome.tests[0].name == "login"
+        assert outcome.tests[0].expected_behavior == "Session created"
 
     def test_skips_preamble_rows_above_the_header(self, tmp_path: Path):
         path = tmp_path / "preamble.csv"

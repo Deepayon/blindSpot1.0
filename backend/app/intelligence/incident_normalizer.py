@@ -19,9 +19,9 @@ from ..domain.models import NormalizedIncident
 from .extraction import (
     detect_signals,
     extract_conditions,
-    infer_feature,
     merge_conditions,
 )
+from .vocabulary import FeatureVocabulary
 
 log = get_logger(__name__)
 
@@ -43,9 +43,11 @@ _SEVERITY_KEYWORDS: tuple[tuple[str, tuple[str, ...]], ...] = (
 )
 
 #: Structured keys callers may supply directly; anything else lands in `extra`.
+#: "extra" itself is merged rather than nested, so a caller can pass forward the
+#: flags a previous analysis recorded.
 _KNOWN_KEYS = {
     "id", "title", "description", "feature", "scenario", "conditions",
-    "failure", "root_cause", "signals", "severity", "occurred_at",
+    "failure", "root_cause", "signals", "severity", "occurred_at", "extra",
 }
 
 
@@ -58,6 +60,7 @@ class IncidentNormalizer:
         *,
         incident_id: str,
         structured: dict[str, Any] | None = None,
+        vocabulary: FeatureVocabulary | None = None,
     ) -> NormalizedIncident:
         structured = dict(structured or {})
         description = (text or "").strip()
@@ -74,8 +77,17 @@ class IncidentNormalizer:
         # names the mechanism ("division by zero") that decides the gap type.
         corpus = " ".join(filter(None, [title, description, failure, root_cause]))
 
-        feature = str(structured.get("feature") or "").strip().title() or infer_feature(
-            title, description, failure, root_cause
+        # The feature is resolved against the vocabulary learned from the
+        # indexed suite, so it is always a name this organisation actually
+        # uses. A supplied feature is matched against that set too, rather than
+        # trusted blindly, so a typo does not create a phantom feature that
+        # matches no test.
+        vocabulary = vocabulary or FeatureVocabulary()
+        supplied = str(structured.get("feature") or "").strip()
+        feature = (
+            (vocabulary.matches(supplied) or supplied.title())
+            if supplied
+            else vocabulary.classify(title, description, failure, root_cause)
         )
 
         conditions = merge_conditions(
@@ -103,7 +115,10 @@ class IncidentNormalizer:
             signals=list(signals),
             severity=str(structured.get("severity") or self._severity(corpus)).upper(),
             occurred_at=self._occurred_at(structured.get("occurred_at")),
-            extra={k: v for k, v in structured.items() if k not in _KNOWN_KEYS},
+            extra={
+                **(structured.get("extra") or {}),
+                **{k: v for k, v in structured.items() if k not in _KNOWN_KEYS},
+            },
         )
 
         log.info(

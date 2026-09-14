@@ -25,6 +25,11 @@ class Recommender:
         coverage: Coverage,
         risk: Risk,
     ) -> list[Recommendation]:
+        if coverage is Coverage.INSUFFICIENT_EVIDENCE:
+            # There is no test to recommend, because there is no scenario yet.
+            # The actionable next step belongs to the incident report itself.
+            return _recommend_better_report(comparison)
+
         if gap is None:
             return []
 
@@ -312,6 +317,38 @@ def _recommend_generic(
             )
         )
     return recommendations
+
+
+def _recommend_better_report(comparison: ScenarioComparison) -> list[Recommendation]:
+    """What the incident report must state before coverage can be judged.
+
+    Deliberately not a test suggestion. Proposing tests from a report that
+    names no condition would be inventing the scenario, which is the failure
+    mode this verdict exists to prevent.
+    """
+    incident = comparison.incident
+    subject = incident.feature if incident.feature and incident.feature != "Unknown" else "affected"
+    return [
+        Recommendation(
+            title="Record the input values or conditions that triggered the failure",
+            rationale=(
+                "Coverage is decided by comparing production conditions against test inputs. "
+                "Without at least one condition, field or event sequence there is nothing to "
+                "compare, and any verdict would be a guess."
+            ),
+        ),
+        Recommendation(
+            title=f"Identify the specific {subject} behaviour that broke",
+            rationale=(
+                "A symptom such as a page looking wrong can come from many different "
+                "scenarios, each covered by different tests."
+            ),
+        ),
+        Recommendation(
+            title="Re-analyse this incident once the details are added",
+            rationale="The analysis is reproducible, so an updated report yields a real verdict.",
+        ),
+    ]
 
 
 def _trim(value: float) -> str:

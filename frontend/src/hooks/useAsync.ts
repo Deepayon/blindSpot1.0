@@ -2,6 +2,7 @@
  *  need a data-fetching library, and one more abstraction would obscure the
  *  request/response shape a reviewer wants to see. */
 import { useCallback, useEffect, useRef, useState } from "react";
+import { api } from "../services/api";
 
 export interface AsyncState<T> {
   data: T | null;
@@ -94,6 +95,41 @@ export function useAction<TArgs extends unknown[], TResult>(
   }, []);
 
   return { run, result, error, pending, reset };
+}
+
+/** The feature names present in the indexed suite, most-tested first.
+ *
+ *  Read from the corpus rather than hard-coded. A fixed list of retail-shaped
+ *  names (Checkout, Payments, Orders) is wrong for an insurance or logistics
+ *  suite, and offering a filter for features that do not exist while omitting
+ *  the ones that do makes the screen actively misleading.
+ */
+export function useIndexedFeatures(): string[] {
+  const [features, setFeatures] = useState<string[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .testStats()
+      .then((stats) => {
+        if (cancelled) return;
+        const counts = (stats.by_feature ?? {}) as Record<string, number>;
+        setFeatures(
+          Object.entries(counts)
+            .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+            .map(([name]) => name),
+        );
+      })
+      // The filter is a convenience; losing it must not break the screen.
+      .catch(() => {
+        if (!cancelled) setFeatures([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return features;
 }
 
 /** Hash-based routing. Avoids a router dependency for five screens. */

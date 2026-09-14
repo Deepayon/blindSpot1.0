@@ -20,10 +20,10 @@ from pathlib import Path
 from ..config.logging_conf import get_logger
 from ..domain.models import NormalizedTest
 from ..intelligence.extraction import (
+    derive_feature,
     detect_signals,
     extract_conditions,
     humanize_test_name,
-    infer_feature,
     merge_conditions,
 )
 from .base import ParseOutcome, TestParser
@@ -64,7 +64,10 @@ class PytestParser(TestParser):
 
         outcome.files_scanned = 1
         source_lines = source.splitlines()
-        module_feature = infer_feature(path.stem, default="")
+        # The feature is the module this test lives in. Reading it from the path
+        # works for any domain; a keyword list only works for the one it was
+        # written for.
+        module_feature = derive_feature(str(path), default="Unknown")
 
         for node, class_name in self._iter_test_functions(tree):
             try:
@@ -106,11 +109,7 @@ class PytestParser(TestParser):
         code = "\n".join(source_lines[node.lineno - 1 : end_line])[:_MAX_CODE_CHARS]
 
         readable = humanize_test_name(node.name)
-        feature = (
-            infer_feature(node.name, docstring, class_name or "", default="")
-            or module_feature
-            or infer_feature(str(path.parent), default="Unknown")
-        )
+        feature = module_feature or "Unknown"
 
         # Conditions, in descending order of trust: values the test literally
         # passes in, parametrize values, values it asserts on, then whatever the

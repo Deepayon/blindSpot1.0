@@ -13,9 +13,9 @@ from pathlib import Path
 
 from ..domain.models import NormalizedTest
 from ..intelligence.extraction import (
+    derive_feature,
     detect_signals,
     extract_conditions,
-    infer_feature,
     merge_conditions,
 )
 from .base import ParseOutcome, TestParser
@@ -56,7 +56,11 @@ class JestTestParser(TestParser):
 
         outcome.files_scanned = 1
         suites = [(m.start(), m.group("title")) for m in _DESCRIBE_RE.finditer(source)]
-        module_feature = infer_feature(path.stem, default="")
+        # `.test.`/`.spec.` suffixes are stripped so `checkout.test.ts` reads as
+        # "Checkout" rather than "Checkout Test".
+        module_feature = derive_feature(
+            str(path).replace(".test.", ".").replace(".spec.", "."), default="Unknown"
+        )
 
         for index, match in enumerate(_TEST_RE.finditer(source), start=1):
             title = match.group("title").strip()
@@ -70,7 +74,9 @@ class JestTestParser(TestParser):
             ][:25]
 
             line_number = source.count("\n", 0, match.start()) + 1
-            feature = infer_feature(title, suite, default="") or module_feature or "Unknown"
+            # A describe() block names the area under test, so it is a better
+            # label than the file when present.
+            feature = derive_feature(suite, default="") or module_feature or "Unknown"
             skipped = bool(_SKIP_RE.search(source[max(0, match.start() - 20) : match.end()]))
 
             outcome.tests.append(

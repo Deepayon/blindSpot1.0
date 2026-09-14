@@ -9,11 +9,12 @@ import pytest
 
 
 def _csv_bytes() -> bytes:
+    """A realistic export: it names its own module, as real exports do."""
     return (
-        b"Test ID,Test Name,Scenario,Expected Result\n"
-        b"TC-001,checkout_without_coupon,Checkout without a coupon,Order succeeds\n"
-        b"TC-002,checkout_with_discount,Checkout with a 10% discount coupon,Order succeeds\n"
-        b"TC-003,checkout_with_larger_discount,Checkout with a 20% discount coupon,Order succeeds\n"
+        b"Test ID,Test Name,Module,Scenario,Expected Result\n"
+        b"TC-001,checkout_without_coupon,Checkout,Checkout without a coupon,Order succeeds\n"
+        b"TC-002,checkout_with_discount,Checkout,Checkout with a 10% discount coupon,Order succeeds\n"
+        b"TC-003,checkout_with_larger_discount,Checkout,Checkout with a 20% discount coupon,Order succeeds\n"
     )
 
 

@@ -16,11 +16,15 @@ Coverage decision order (first match wins):
 from __future__ import annotations
 
 from ..domain.enums import Coverage, GapType, TestEffectiveness
-from .comparator import SEQUENCE_SIGNALS, ScenarioComparison, TestComparison
+from ..domain.text import normalize
+from .comparator import (
+    RELEVANCE_FLOOR,
+    SEQUENCE_SIGNALS,
+    ScenarioComparison,
+    TestComparison,
+)
 
-#: A candidate below this blended retrieval score is not treated as related at
-#: all. Set low because retrieval already filters; this only rejects noise.
-RELEVANCE_FLOOR = 0.15
+__all__ = ["RELEVANCE_FLOOR", "CoverageClassifier", "GapClassifier"]
 
 #: Coverage strength above which a test counts as meaningfully related even
 #: without an exact condition match.
@@ -30,6 +34,11 @@ PARTIAL_STRENGTH_FLOOR = 0.35
 #: topical agreement, otherwise we would be guessing.
 TOPICAL_COVERED_SCORE = 0.55
 TOPICAL_COVERED_OVERLAP = 0.45
+
+#: Distinctive shared terms that, together with a strong score, stand in for
+#: raw overlap. Two is deliberate: one rare word in common is a coincidence,
+#: two describing the same behaviour is not.
+TOPICAL_COVERED_TERMS = 2
 
 #: Unmatched signal -> gap type, in priority order. The first unmatched signal
 #: in this sequence decides the gap.
@@ -62,8 +71,26 @@ class CoverageClassifier:
     def classify(self, comparison: ScenarioComparison) -> tuple[Coverage, TestEffectiveness]:
         best = comparison.best
 
-        # 1. Nothing relevant was retrieved.
-        if best is None or best.score < RELEVANCE_FLOOR:
+        # 1. Nothing relevant was retrieved. Measured across every candidate:
+        # `best` is ranked by coverage strength, so its own score can be low
+        # even when a genuinely related test was retrieved alongside it.
+        if best is None or comparison.top_score < RELEVANCE_FLOOR:
+            incident = comparison.incident
+            if (
+                not incident.conditions
+                and not incident.signals
+                and not comparison.feature_known
+            ):
+                # No area, no condition, no behaviour, and nothing retrieved:
+                # there was nothing to search the suite with. "Not covered"
+                # would claim a search happened and came back empty, when
+                # nothing was ever asked.
+                #
+                # A known feature is what separates this from an honest
+                # negative. "A chargeback was recorded against the wrong order"
+                # names its area; finding no Payments test for it is a real
+                # finding, not an absence of information.
+                return Coverage.INSUFFICIENT_EVIDENCE, TestEffectiveness.NO_COVERAGE
             return Coverage.NOT_COVERED, TestEffectiveness.NO_COVERAGE
 
         # 2. Every piece is tested somewhere, but no single test combines them.
@@ -73,9 +100,17 @@ class CoverageClassifier:
         has_structure = bool(best.conditions) or bool(comparison.decisive_signals)
 
         # 3. One test represents the production scenario completely.
-        if has_structure and best.feature_match:
+        if has_structure and best.feature_ok:
             conditions_ok = best.covers_all_conditions or not best.conditions
             signals_ok = best.covers_all_decisive_signals
+            # With no conditions to pin it down, a shared signal alone is too
+            # weak for the strongest verdict: "refund before capture" and
+            # "retry after a failure" are both state transitions, and calling
+            # the second coverage for the first would tell a reader the
+            # scenario is tested when no test goes near it. Something specific
+            # must also be shared.
+            if not best.conditions and not best.specific_terms:
+                signals_ok = False
             if conditions_ok and signals_ok:
                 # The scenario *was* covered, yet production still failed, so the
                 # test's data or assertions did not actually protect the behaviour.
@@ -97,20 +132,80 @@ class CoverageClassifier:
             return False
         if best.matched_conditions or best.matched_signals:
             return True
-        # The test varies the same input, just never at the production value , 
+        # The test varies the same input, just never at the production value:
         # the canonical "10% and 20% but never 100%" case.
-        if comparison.union_present_condition_keys() & set(comparison.incident.conditions):
+        incident_keys = set(comparison.incident.conditions)
+        if comparison.union_present_condition_keys() & incident_keys:
             return True
+
+        # A test merely *named* for the input is weaker evidence, so it only
+        # counts when no decisive behaviour is missing. Otherwise a Checkout
+        # test mentioning "cart" would upgrade an untested concurrency failure
+        # to partially covered, which is the behaviour that matters being
+        # outvoted by a noun.
+        mentioned_keys = comparison.union_mentioned_condition_keys() & incident_keys
+        if not comparison.unmatched_signals() and mentioned_keys:
+            return True
+
+        # The unmatched signal *is* the production value of a field some test is
+        # about: production reported `email = null`, and a test drives `email`
+        # but records no value. The dimension is exercised, the value is not,
+        # which is the definition of partial. Narrow on purpose: it needs a
+        # condition whose value is itself a signal, and a test naming that same
+        # field, so it cannot upgrade an unrelated untested behaviour.
+        if mentioned_keys and any(
+            comparison.key_bound_signals.get(signal) in {normalize(k) for k in mentioned_keys}
+            for signal in comparison.unmatched_signals()
+        ):
+            return True
+
+        # Nothing about the incident is represented: no condition matched, no
+        # signal matched, and some decisive behaviour is exercised by no
+        # candidate at all. Topical closeness alone is then not partial
+        # coverage. A suite full of Search tests, none of which touches
+        # permissions, is not partial coverage for a permissions failure in
+        # Search, and calling it that would point the reader at tests that
+        # could never have caught the bug.
+        #
+        # Shared wording is deliberately not an escape hatch here. Allowing a
+        # rare shared term to justify PARTIAL was tried and reclassified
+        # nineteen genuinely uncovered scenarios as partially covered: incidents
+        # routinely share an uncommon word with some test in their own feature
+        # without that test going anywhere near the failure.
+        if comparison.unmatched_signals():
+            return False
+
         return best.coverage_strength() >= PARTIAL_STRENGTH_FLOOR
 
     def _classify_topical(
         self, best: TestComparison, comparison: ScenarioComparison
     ) -> tuple[Coverage, TestEffectiveness]:
-        """No conditions and no decisive signals, judge on topic alone."""
-        if (
-            best.feature_match
-            and best.score >= TOPICAL_COVERED_SCORE
-            and best.scenario_overlap >= TOPICAL_COVERED_OVERLAP
+        """No conditions and no decisive signals, judge on topic alone.
+
+        With no structured facts the only remaining evidence is shared
+        vocabulary, and that is evidence only where the shared words are
+        specific enough to mean something. An incident reading "the orders page
+        looked wrong" shares "orders" and "page" with half the suite; concluding
+        "partially covered" from that is a guess dressed as a verdict, so it is
+        reported as insufficient evidence instead.
+        """
+        # Checked first: when nothing retrieved is even in the incident's area,
+        # "not covered" is a positive finding, not a guess. Insufficient
+        # evidence is reserved for the case where we would otherwise have
+        # claimed coverage without anything to base it on.
+        if not comparison.any_feature_match:
+            return Coverage.NOT_COVERED, TestEffectiveness.NO_COVERAGE
+        if not any(comp.specific_terms for comp in comparison.judged):
+            return Coverage.INSUFFICIENT_EVIDENCE, TestEffectiveness.NO_COVERAGE
+        # Two routes to COVERED, both requiring the same feature and a strong
+        # retrieval score. Raw token overlap is diluted by incident prose: an
+        # incident describing the browser, the back button and cached data
+        # scores 0.23 against the test that names the exact behaviour it
+        # exercised. Several distinctive shared terms are the better evidence,
+        # since each one is a word almost no other test in the suite uses.
+        if best.feature_match and best.score >= TOPICAL_COVERED_SCORE and (
+            best.scenario_overlap >= TOPICAL_COVERED_OVERLAP
+            or len(best.specific_terms) >= TOPICAL_COVERED_TERMS
         ):
             return Coverage.COVERED, TestEffectiveness.POTENTIALLY_INEFFECTIVE
         if comparison.any_feature_match:

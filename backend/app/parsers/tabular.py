@@ -13,9 +13,9 @@ from typing import Any
 from ..domain.models import NormalizedTest
 from ..domain.text import normalize
 from ..intelligence.extraction import (
+    derive_feature,
     detect_signals,
     extract_conditions,
-    infer_feature,
     infer_scenario,
     merge_conditions,
 )
@@ -124,8 +124,11 @@ def build_test_from_row(
     if not name:
         name = scenario_text[:120] or test_id
 
+    # The export states its own taxonomy in the module column. Where it does
+    # not, the file or worksheet name is the next best statement of it. Guessing
+    # from the row text would reintroduce a domain assumption.
     feature_cell = _cell(row, mapping.get("feature"))
-    feature = feature_cell.strip().title() if feature_cell else infer_feature(name, scenario_text, expected)
+    feature = feature_cell.strip().title() if feature_cell else derive_feature(source)
 
     tags_cell = _cell(row, mapping.get("tags"))
     tags = [t.strip() for t in re.split(r"[;,|]+", tags_cell) if t.strip()] if tags_cell else []

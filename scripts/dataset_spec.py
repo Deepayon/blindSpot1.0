@@ -87,6 +87,12 @@ CORE_TESTS: tuple[TestSpec, ...] = (
              "Payment is marked pending"),
     TestSpec("payment_retry_after_failure", "Payments", "Payment retry after a failed attempt",
              "Second attempt succeeds"),
+    # Concurrency is exercised, but only for refunds and only on its own. That
+    # is what makes "retry while the first attempt is still in flight" a
+    # combination gap rather than an untested dimension.
+    TestSpec("payment_refund_concurrent_requests", "Payments",
+             "Two simultaneous refund requests for the same payment",
+             "Only one refund is issued"),
     TestSpec("payment_refund_full", "Payments", "Full refund of a captured payment",
              "Refund is issued", {"amount": "100"}),
     TestSpec("payment_refund_partial", "Payments", "Partial refund of a captured payment",
@@ -314,7 +320,11 @@ INCIDENTS: tuple[IncidentSpec, ...] = (
     IncidentSpec(
         "invalid_email_format", "Profile",
         "A malformed email address was accepted and stored, causing every later notification to bounce.",
-        "NOT_COVERED", "INVALID_INPUT_VALIDATION", "MEDIUM",
+        "PARTIAL", "INVALID_INPUT_VALIDATION", "MEDIUM",
+        "same shape as null_email_profile: a test changes the account email address, so the "
+        "input is exercised but never with a malformed value. Labelled NOT_COVERED until the "
+        "two were compared directly, which was an inconsistency in this file rather than a "
+        "difference between the incidents",
     ),
     IncidentSpec(
         "unicode_notification_subject", "Notifications",
@@ -497,6 +507,105 @@ INCIDENTS: tuple[IncidentSpec, ...] = (
         "environment_feature_flag", "Search",
         "A search ranking feature flag was enabled only in production and changed result ordering unexpectedly.",
         "NOT_COVERED", "ENVIRONMENT", "LOW",
+    ),
+
+    # ===== Hard cases =====================================================
+    # These exist to make the evaluation adversarial rather than flattering.
+    # Each targets a way the analyser could plausibly be wrong.
+
+    # -- Wording that shares no vocabulary with the tests -------------------
+    # Both are expected to FAIL deterministic analysis, and both are kept for
+    # that reason. Recognising that a "full-value voucher" is a 100% discount,
+    # or that a "wrong secret" is an incorrect password, needs the meaning of
+    # the words rather than the words themselves. The deterministic engine
+    # declines instead of guessing, which is the intended behaviour; semantic
+    # extraction is what should close them. Deleting or relabelling these would
+    # hide the one limitation the evaluation most needs to report.
+    IncidentSpec(
+        "hard_wording_promotional_pricing", "Checkout",
+        "A shopper redeemed a full-value promotional voucher and the basket total could not be "
+        "computed. The engine divided by the pre-voucher amount, which had become nothing.",
+        "PARTIAL", "BOUNDARY_CONDITIONS", "HIGH",
+        "says voucher and basket where the tests say coupon and cart, and never says 100%. "
+        "Known limitation: deterministic analysis returns INSUFFICIENT_EVIDENCE",
+    ),
+    IncidentSpec(
+        "hard_wording_sign_in_lockout", "Authentication",
+        "Members attempting to sign in with the wrong secret were shown a server error page "
+        "rather than being told their credentials were not recognised.",
+        "PARTIAL", "ERROR_HANDLING", "HIGH",
+        "sign in and secret rather than login and password. Known limitation: deterministic "
+        "analysis identifies the error-handling gap but reports NOT_COVERED, because it cannot "
+        "tell that the wrong-password test is the same scenario",
+    ),
+
+    # -- Similar but irrelevant tests exist --------------------------------
+    IncidentSpec(
+        "hard_irrelevant_similar_refund", "Payments",
+        "A chargeback raised by the issuing bank was recorded against the wrong order, because "
+        "the chargeback handler matched on customer rather than transaction.",
+        "NOT_COVERED", "UNCATEGORISED", "HIGH",
+        "refund tests are lexically close but a chargeback is a different flow",
+    ),
+    IncidentSpec(
+        "hard_irrelevant_similar_search", "Search",
+        "Autocomplete suggestions kept returning items the customer is not permitted to see.",
+        "NOT_COVERED", "PERMISSION_COMBINATIONS", "HIGH",
+        "many search tests retrieve strongly, none exercises permissions",
+    ),
+
+    # -- Several conditions at once ----------------------------------------
+    IncidentSpec(
+        "hard_multi_condition_checkout", "Checkout",
+        "Checkout failed when quantity was 0 and a 100% discount coupon was applied at the "
+        "same time. Neither value alone reproduces it.",
+        "PARTIAL", "BOUNDARY_CONDITIONS", "CRITICAL",
+        "two boundary conditions, each tested at other values, never together",
+    ),
+    IncidentSpec(
+        "hard_multi_condition_search", "Search",
+        "Search with a page size of 500 and an empty query returned the whole catalogue and "
+        "timed out.",
+        "PARTIAL", "BOUNDARY_CONDITIONS", "HIGH",
+        "page size is tested at other values; empty query and timeout are not",
+    ),
+
+    # -- Combination gaps ---------------------------------------------------
+    IncidentSpec(
+        "hard_combination_concurrent_retry", "Payments",
+        "A payment was retried while the original attempt was still in flight, and both "
+        "charges settled.",
+        "NOT_COVERED", "STATE_TRANSITIONS", "CRITICAL",
+        "retry and concurrency are each tested alone, never together: the report must not "
+        "state that itself, or it would be handing the analyser the answer",
+    ),
+
+    # -- Genuinely insufficient evidence ------------------------------------
+    # Expected INSUFFICIENT_EVIDENCE, not NOT_COVERED. "Not covered" is a
+    # positive finding meaning the suite was searched and the scenario is
+    # missing. Neither report states a scenario to search for, so claiming it
+    # is untested would be as much a guess as claiming it is covered.
+    IncidentSpec(
+        "hard_insufficient_vague", "Unknown",
+        "Something went wrong in production this morning. Rolled back. Investigating.",
+        "INSUFFICIENT_EVIDENCE", "NONE", "LOW",
+        "no feature, no condition, no root cause: the analyser must not invent one",
+    ),
+    IncidentSpec(
+        "hard_insufficient_symptom_only", "Orders",
+        "Customers reported that the orders page looked wrong for about twenty minutes.",
+        "INSUFFICIENT_EVIDENCE", "NONE", "MEDIUM",
+        "a symptom with no triggering condition: shares only 'orders' and 'page' with the "
+        "suite, which is vocabulary every Orders test uses rather than evidence",
+    ),
+
+    # -- Null and empty distinguished from each other ----------------------
+    IncidentSpec(
+        "hard_empty_string_vs_null", "Profile",
+        "Saving a profile with a display name of an empty string succeeded and produced a "
+        "blank record. A null display name is rejected correctly.",
+        "PARTIAL", "NULL_EMPTY_INPUTS", "MEDIUM",
+        "empty is the gap, null is handled: they must not be conflated",
     ),
 )
 

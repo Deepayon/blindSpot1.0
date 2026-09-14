@@ -83,7 +83,12 @@ function BlindSpotList({ navigate }: { navigate: (route: string) => void }) {
                   <div className="pattern__summary">{pattern.summary}</div>
                   <div className="row row--tight" style={{ marginTop: 6 }}>
                     {pattern.features.map((feature) => (
-                      <Tag key={feature}>{feature}</Tag>
+                      <Tag key={feature}>
+                        {feature}
+                        {feature === pattern.concentrated_in && pattern.concentration >= 0.6
+                          ? ` ${Math.round(pattern.concentration * 100)}%`
+                          : ""}
+                      </Tag>
                     ))}
                   </div>
                 </div>
@@ -152,9 +157,17 @@ function BlindSpotDetail({
           <div>
             <div className="stat__label">Features</div>
             <div className="stat__value" style={{ fontSize: 14 }}>
-              {pattern.features.join(", ") || ", "}
+              {pattern.features.join(", ") || "Not recorded"}
             </div>
           </div>
+          {pattern.concentrated_in && pattern.concentration >= 0.6 ? (
+            <div>
+              <div className="stat__label">Concentrated in</div>
+              <div className="stat__value" style={{ fontSize: 14 }}>
+                {pattern.concentrated_in} ({Math.round(pattern.concentration * 100)}%)
+              </div>
+            </div>
+          ) : null}
         </div>
       </div>
 

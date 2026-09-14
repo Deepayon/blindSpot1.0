@@ -96,6 +96,7 @@ class PatternDetector:
         incident_count = len(bucket.incidents)
         risk = self._score_pattern(bucket, incident_count)
         top_features = [feature for feature, _ in bucket.features.most_common(4)]
+        concentration_feature, concentration_share = self._concentration(bucket)
 
         return BlindSpotPattern(
             key=bucket.key,
@@ -107,6 +108,8 @@ class PatternDetector:
             features=top_features,
             example_incident_ids=bucket.examples,
             summary=self._summary(bucket, incident_count, top_features),
+            concentrated_in=concentration_feature,
+            concentration=round(concentration_share, 2),
         )
 
     def _score_pattern(self, bucket: _Bucket, incident_count: int) -> Risk:
@@ -136,16 +139,37 @@ class PatternDetector:
             return Risk.MEDIUM
         return Risk.LOW
 
+    def _concentration(self, bucket: _Bucket) -> tuple[str, float]:
+        """The feature carrying most of this pattern, and its share.
+
+        Eight null-handling incidents reads as an organisation-wide weakness.
+        If seven are in one service it is that service's weakness, and saying so
+        is the difference between an actionable finding and a misleading one.
+        """
+        if not bucket.features:
+            return "", 0.0
+        feature, count = bucket.features.most_common(1)[0]
+        total = sum(bucket.features.values()) or 1
+        return feature, count / total
+
     def _summary(self, bucket: _Bucket, incident_count: int, features: list[str]) -> str:
-        where = (
-            f" across {', '.join(features[:3])}"
-            if len(features) > 1
-            else f" in {features[0]}" if features else ""
-        )
         leading = bucket.gap_types.most_common(1)[0][0].replace("_", " ").lower()
+        feature, share = self._concentration(bucket)
+
+        # Lead with concentration where it exists. "Mostly in Payments" tells a
+        # reader where to act; "across Payments, Orders, Search" does not.
+        if share >= 0.6 and feature:
+            where = f", {int(share * 100)}% of them in {feature}"
+        elif len(features) > 1:
+            where = f", spread across {', '.join(features[:3])}"
+        elif features:
+            where = f" in {features[0]}"
+        else:
+            where = ""
+
         return (
-            f"{incident_count} production incidents traced back to {bucket.label.lower()}"
-            f"{where}. The most common gap is {leading}."
+            f"{incident_count} incidents involve {bucket.label.lower()}{where}. "
+            f"The most common gap is {leading}."
         )
 
 

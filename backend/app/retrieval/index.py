@@ -20,6 +20,7 @@ from ..config.logging_conf import get_logger
 from ..config.settings import Settings, get_settings
 from ..domain.models import NormalizedTest
 from ..intelligence.extraction import derive_test_signals
+from ..intelligence.vocabulary import FeatureVocabulary, build_vocabulary
 from ..providers.embeddings import EmbeddingProvider, build_embedding_provider
 from .lexical import BM25Index
 from .vector_store.base import VectorStore, build_vector_store
@@ -28,6 +29,10 @@ log = get_logger(__name__)
 
 _META_FILE = "index_meta.json"
 _SCHEMA_VERSION = 1
+
+#: A term in more than this fraction of the suite is corpus vocabulary rather
+#: than evidence. See `TestIndex.is_distinctive_term`.
+MAX_DISTINCTIVE_TERM_SHARE = 0.02
 
 
 class TestIndex:
@@ -43,6 +48,10 @@ class TestIndex:
         self.embedder = embedder or build_embedding_provider(self.settings)
         self.vector_store = vector_store or build_vector_store(self.settings.vector_store)
         self.lexical = BM25Index()
+        #: Feature names and their word profiles, learned from the corpus. This
+        #: is how an incident is matched to the organisation's own taxonomy
+        #: rather than to a list of domains we guessed in advance.
+        self.vocabulary = FeatureVocabulary()
         self._tests: list[NormalizedTest] = []
         self._lock = threading.RLock()
 
@@ -70,12 +79,14 @@ class TestIndex:
 
             self.vector_store.build(vectors)
             self.lexical.build(documents)
+            self.vocabulary = build_vocabulary(self._tests)
 
         log.info(
             "index built",
             extra={
                 "event": "index.built",
                 "tests": len(self._tests),
+                "features": len(self.vocabulary.features),
                 "vector_store": self.vector_store.name,
                 "embedding_model": getattr(self.embedder, "model_name", self.embedder.name),
             },
@@ -99,6 +110,34 @@ class TestIndex:
     def matched_terms(self, query_text: str, ordinal: int) -> list[str]:
         return self.lexical.matched_terms(query_text, ordinal)
 
+    def document_share(self, term: str) -> float:
+        """Fraction of indexed tests containing `term`. See `BM25Index`."""
+        return self.lexical.document_share(term)
+
+    def is_distinctive_term(self, term: str) -> bool:
+        """Whether `term` is rare enough in this corpus to identify a behaviour.
+
+        A term every test uses cannot be evidence that one particular test
+        relates to an incident: in a retail suite "orders" appears in 14% of
+        tests and distinguishes nothing, while "logout" appears in 0.07% and
+        names a behaviour.
+
+        The single-test floor matters for small suites. At a flat 2% a term
+        would need to appear in less than one test of a 20-test suite to
+        qualify, so nothing would ever be distinctive and every topical verdict
+        would collapse to "insufficient evidence".
+        """
+        if self.is_empty:
+            return False
+        share = self.lexical.document_share(term)
+        if share >= 1.0:
+            # Either absent from the corpus or present in every test. Neither
+            # is evidence that a particular test relates to the incident, and
+            # an unknown term must not read as "rare, therefore meaningful".
+            return False
+        threshold = max(MAX_DISTINCTIVE_TERM_SHARE, 1.0 / len(self._tests))
+        return share <= threshold
+
     def test_at(self, ordinal: int) -> NormalizedTest | None:
         return self._tests[ordinal] if 0 <= ordinal < len(self._tests) else None
 
@@ -116,6 +155,7 @@ class TestIndex:
     def describe(self) -> dict[str, object]:
         return {
             "tests": len(self._tests),
+            "features": self.vocabulary.features,
             "vector_store": self.vector_store.name,
             "embedding_provider": self.embedder.name,
             "embedding_model": getattr(self.embedder, "model_name", self.embedder.name),
@@ -167,6 +207,10 @@ class TestIndex:
                 if not self.vector_store.load(directory):
                     return False
                 self._tests = tests
+                # Derived from the tests, so it is recomputed rather than
+                # persisted. That keeps the on-disk format one thing smaller and
+                # means a vocabulary improvement applies to an existing index.
+                self.vocabulary = build_vocabulary(tests)
                 if len(self.vector_store) != len(tests):
                     log.warning(
                         "persisted index is inconsistent; rebuild required",

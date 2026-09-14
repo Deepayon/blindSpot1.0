@@ -48,6 +48,22 @@ class BM25Index:
             for term, postings in self._postings.items()
         }
 
+    def document_share(self, term: str) -> float:
+        """Fraction of indexed tests containing `term` (1.0 when unknown).
+
+        Used to tell a term that carries information from one that does not. In
+        a checkout suite "checkout" appears in 14% of tests and says nothing;
+        "logout" appears in 0.07% and is real evidence. Unknown terms return
+        1.0 so that "never seen in the corpus" is never mistaken for "rare and
+        therefore meaningful".
+        """
+        if not self._document_count:
+            return 1.0
+        postings = self._postings.get(term)
+        if not postings:
+            return 1.0
+        return len(postings) / self._document_count
+
     def search(self, query: str, *, use_synonyms: bool = True) -> dict[int, float]:
         """Return {ordinal: bm25 score} for every document sharing a term."""
         terms = self._query_terms(query, use_synonyms)

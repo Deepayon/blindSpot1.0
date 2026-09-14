@@ -56,7 +56,12 @@ class IncidentService:
                 session
             ).next_incident_id()
 
-        incident = self.normalizer.normalize(text, incident_id=incident_id, structured=structured)
+        incident = self.normalizer.normalize(
+            text,
+            incident_id=incident_id,
+            structured=structured,
+            vocabulary=self.state.index.vocabulary,
+        )
 
         # Recurrence feeds risk scoring, so it must be known before analysis.
         similar = self._similar_incident_count(incident)
@@ -112,7 +117,15 @@ class IncidentService:
             )
 
     def reanalyze(self, external_id: str) -> AnalysisResult | None:
-        """Re-run analysis for a stored incident against the current index."""
+        """Re-run a stored incident against the current index.
+
+        The understanding of the incident is reused rather than recomputed: the
+        conditions and signals settled on first analysis are passed back in, and
+        `extraction_final` stops the model being asked again. Re-analysis
+        therefore answers one question only, "does the current suite cover this
+        now?", and cannot change its answer because a model phrased things
+        differently today.
+        """
         with session_scope() as session:
             row = IncidentRepository(session).get_by_external_id(external_id)
             if row is None:
@@ -123,6 +136,9 @@ class IncidentService:
                 "feature": row.feature,
                 "severity": row.severity,
                 "occurred_at": row.occurred_at,
+                "conditions": dict(row.conditions or {}),
+                "signals": list(row.signals or []),
+                "extra": {**(row.extra or {}), "extraction_final": True},
             }
             description = row.description
 

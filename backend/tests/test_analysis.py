@@ -27,7 +27,14 @@ def engine(indexed_state):
 
 
 def analyse(engine, text: str, incident_id: str = "INC-1", **structured):
-    incident = IncidentNormalizer().normalize(text, incident_id=incident_id, structured=structured)
+    # The vocabulary comes from the index, exactly as the service supplies it,
+    # so the incident is classified against the features this corpus uses.
+    incident = IncidentNormalizer().normalize(
+        text,
+        incident_id=incident_id,
+        structured=structured,
+        vocabulary=engine.index.vocabulary,
+    )
     return engine.analyze(incident)
 
 
@@ -142,6 +149,66 @@ class TestCoverageClassification:
         assert result.gaps == []
         assert result.confidence == 0.0
 
+    def test_vague_report_yields_insufficient_evidence_not_a_guess(self, engine):
+        """A report with no conditions must not be answered with a verdict.
+
+        The tests it retrieves share only words the whole suite uses, which is
+        evidence neither way.
+        """
+        result = analyse(engine, "Something went wrong in production this morning.")
+
+        assert result.coverage is Coverage.INSUFFICIENT_EVIDENCE
+        assert result.gaps == []
+        assert "does not describe" in result.explanation or "not enough" in result.explanation
+
+    def test_symptom_without_a_trigger_is_insufficient_evidence(self, app_state):
+        """Sharing the feature's own vocabulary is not evidence of coverage."""
+        app_state.index.build(
+            [
+                make_test("TC-1", "order_list", "Orders", "The orders page lists recent orders"),
+                make_test("TC-2", "order_detail", "Orders", "The orders page shows one order"),
+            ]
+        )
+        result = analyse(
+            GapAnalysisEngine(app_state.index),
+            "Customers reported that the orders page looked wrong for about twenty minutes.",
+            feature="Orders",
+        )
+
+        assert result.coverage is Coverage.INSUFFICIENT_EVIDENCE
+
+    def test_insufficient_evidence_never_becomes_a_blind_spot(self, engine):
+        """An unanswerable incident must not feed the recurring-pattern data."""
+        result = analyse(engine, "Something went wrong in production this morning.")
+
+        assert result.gaps == []
+        assert result.recommendations, "the reader still needs to know what to add"
+        assert all(
+            "test" not in r.title.lower() or "re-analyse" in r.title.lower()
+            for r in result.recommendations
+        ), "recommending tests for an unknown scenario would be inventing it"
+
+    def test_a_named_area_with_no_related_test_is_a_real_finding(self, app_state):
+        """Not covered, not insufficient: the suite was searched and came up empty.
+
+        The distinction matters. "Insufficient evidence" says we could not look;
+        this incident names its area clearly and nothing in it is related.
+        """
+        app_state.index.build(
+            [
+                make_test("TC-1", "login_valid", "Authentication", "Login with valid credentials"),
+                make_test("TC-2", "login_invalid", "Authentication", "Login with a bad password"),
+            ]
+        )
+        result = analyse(
+            GapAnalysisEngine(app_state.index),
+            "A chargeback raised by the issuing bank was recorded against the wrong order, "
+            "because the chargeback handler matched on customer rather than transaction.",
+            feature="Payments",
+        )
+
+        assert result.coverage is Coverage.NOT_COVERED
+
     def test_cross_feature_test_does_not_grant_coverage(self, app_state):
         """A timeout test in Payments is not timeout coverage for Profile."""
         app_state.index.build(
@@ -192,6 +259,106 @@ class TestExplainability:
 
         assert 0.0 <= vague.confidence <= rich.confidence <= 1.0
         assert rich.confidence_level.value in {"HIGH", "MEDIUM"}
+
+
+# --------------------------------------------------------------------------
+# Term specificity: what counts as topical evidence
+# --------------------------------------------------------------------------
+
+
+class TestTermSpecificity:
+    """Shared wording is evidence only when the words are rare in the corpus."""
+
+    def test_a_term_used_across_the_suite_is_not_distinctive(self, app_state):
+        app_state.index.build(
+            [make_test(f"TC-{i}", f"orders_{i}", "Orders", "The orders page works") for i in range(60)]
+        )
+        assert app_state.index.is_distinctive_term("orders") is False
+
+    def test_a_rare_term_is_distinctive(self, app_state):
+        corpus = [make_test(f"TC-{i}", f"orders_{i}", "Orders", "The orders page works") for i in range(60)]
+        corpus.append(make_test("TC-99", "logout", "Authentication", "Logout clears the session"))
+        app_state.index.build(corpus)
+
+        assert app_state.index.is_distinctive_term("logout") is True
+
+    def test_small_suites_still_have_distinctive_terms(self, app_state):
+        """In a 20-test suite one test is already 5% of the corpus.
+
+        Applying the 2% share flatly would make nothing distinctive and collapse
+        every topical verdict to "insufficient evidence".
+        """
+        app_state.index.build(
+            [make_test(f"TC-{i}", f"t{i}", "Orders", f"Scenario number {i} for widgets") for i in range(20)]
+        )
+        assert app_state.index.is_distinctive_term("widgets") is False
+        assert app_state.index.is_distinctive_term("number") is False
+        app_state.index.build(
+            [make_test("TC-1", "logout", "Authentication", "Logout clears the session")]
+            + [make_test(f"TC-{i}", f"t{i}", "Orders", f"Ordinary scenario {i}") for i in range(2, 21)]
+        )
+        assert app_state.index.is_distinctive_term("logout") is True
+
+    def test_an_unindexed_term_is_not_treated_as_rare(self, app_state):
+        """Never seen is not the same as rare, and must not read as evidence."""
+        app_state.index.build([make_test("TC-1", "t", "Orders", "The orders page works")])
+
+        assert app_state.index.is_distinctive_term("chargeback") is False
+
+
+# --------------------------------------------------------------------------
+# Retrieval of signal witnesses
+# --------------------------------------------------------------------------
+
+
+class TestSignalWitnesses:
+    def test_a_dominant_candidate_does_not_hide_the_other_signal(self, app_state):
+        """Combination gaps are invisible unless each signal keeps a witness.
+
+        A strongly-scoring retry test raises the relative floor above the
+        concurrency test, and the interaction between them is the finding.
+        """
+        app_state.index.build(
+            [
+                make_test("TC-1", "payment_retry", "Payments",
+                          "Payment retry after a failed attempt is retried again"),
+                make_test("TC-2", "payment_concurrent", "Payments",
+                          "Two simultaneous refund requests for the same payment"),
+                make_test("TC-3", "payment_card", "Payments", "Payment with a valid card"),
+            ]
+        )
+        incident = IncidentNormalizer().normalize(
+            "A payment was retried while the original attempt was still in flight, and both "
+            "charges settled.",
+            incident_id="INC-1",
+            structured={"feature": "Payments"},
+        )
+        retrieved, _ = Retriever(app_state.index).retrieve(incident)
+
+        assert {"TC-1", "TC-2"} <= {item.test.id for item in retrieved}
+
+    def test_another_features_test_is_not_counted_as_coverage(self, app_state):
+        """One feature's concurrency test cannot answer for another's.
+
+        Retrieval may still surface it, since it is genuinely the closest thing
+        by wording. What must not happen is it counting as coverage and closing
+        the gap: the Checkout concurrency failure stays reported.
+        """
+        app_state.index.build(
+            [
+                make_test("TC-2", "payment_concurrent", "Payments",
+                          "Two simultaneous refund requests for the same payment"),
+                make_test("TC-3", "orders_list", "Orders", "The orders page lists orders"),
+            ]
+        )
+        result = analyse(
+            GapAnalysisEngine(app_state.index),
+            "Two concurrent checkout requests for the same cart created duplicate orders.",
+            feature="Checkout",
+        )
+
+        assert result.coverage is Coverage.NOT_COVERED
+        assert result.gaps[0].gap_type is GapType.CONCURRENCY
 
 
 # --------------------------------------------------------------------------
@@ -270,7 +437,31 @@ class TestPatternDetection:
         assert pattern.label == "Null / Empty Inputs"
         assert pattern.incident_count == 4
         assert pattern.risk is Risk.HIGH
-        assert "4 production incidents" in pattern.summary
+        assert "4 incidents" in pattern.summary
+
+    def test_a_pattern_concentrated_in_one_area_says_so(self):
+        """Seven incidents in one service is that service's problem, not the
+        organisation's, and the summary must not imply otherwise."""
+        observations = self._observations(
+            *[(f"INC-{i}", GapType.NULL_HANDLING, "Billing", "HIGH") for i in range(6)],
+            ("INC-99", GapType.EMPTY_INPUT, "Search", "LOW"),
+        )
+        pattern = PatternDetector(min_incidents=3).detect(observations)[0]
+
+        assert pattern.concentrated_in == "Billing"
+        assert pattern.concentration >= 0.8
+        assert "in Billing" in pattern.summary
+
+    def test_a_genuinely_spread_pattern_is_not_reported_as_concentrated(self):
+        observations = self._observations(
+            ("INC-1", GapType.NULL_HANDLING, "Billing", "HIGH"),
+            ("INC-2", GapType.EMPTY_INPUT, "Search", "HIGH"),
+            ("INC-3", GapType.MISSING_FIELD, "Orders", "HIGH"),
+        )
+        pattern = PatternDetector(min_incidents=3).detect(observations)[0]
+
+        assert pattern.concentration < 0.6
+        assert "spread across" in pattern.summary
 
     def test_below_the_threshold_is_not_a_pattern(self):
         observations = self._observations(
